@@ -1,0 +1,85 @@
+---
+# Grafana (dashboards/UI) — separate app so it can be upgraded/reconfigured
+# independently of the VictoriaMetrics stack in cluster/apps/victoria-metrics.
+#
+# Chart pinned at the newest release as of 2026-09-30 (app: Grafana 13.2.3 =
+# newest upstream). NOTE: the newest charts live in grafana-community/helm-charts
+# (chart version tracks the app version); the old grafana.github.io/helm-charts
+# repo only ships Grafana 12.x. Upgrade by bumping `version:` below.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: grafana
+
+resources:
+  - namespace.yaml
+  - ingress.yaml
+
+# KSOPS generator: admin credentials decrypted at sync time (ArgoCD) or locally
+# (`kustomize build --enable-alpha-plugins --enable-exec`).
+generators:
+  - secret-generator.yaml
+
+helmCharts:
+  - name: grafana
+    version: 13.2.7
+    repo: https://grafana-community.github.io/helm-charts
+    releaseName: grafana
+    namespace: grafana
+    valuesInline:
+      # Credentials come from the SOPS-encrypted Secret (secret.sops.yaml):
+      # keys admin-user / admin-password.
+      admin:
+        existingSecret: grafana-admin
+        userKey: admin-user
+        passwordKey: admin-password
+
+      service:
+        # Ingress backend references port name `http` (chart default is
+        # `service` in 13.x).
+        portName: http
+
+      env:
+        GF_SERVER_ROOT_URL: https://grafana.timi.io.vn
+
+      # SQLite DB (users, API keys) on local-path PVC; dashboards themselves are
+      # provisioned read-only from ConfigMaps via the sidecar.
+      persistence:
+        enabled: true
+        size: 2Gi
+
+      # Drop the helm-test Pod/ConfigMap/ServiceAccount — ArgoCD would create
+      # them as regular resources.
+      testFramework:
+        enabled: false
+
+      # Dashboard ConfigMaps are created by the sync-job of
+      # victoria-metrics-k8s-stack (label grafana_dashboard: "1") in the
+      # victoria-metrics namespace.
+      sidecar:
+        dashboards:
+          enabled: true
+          searchNamespace: ALL
+
+      # uid MUST stay `VictoriaMetrics` — the k8s-stack dashboard sync-job
+      # patches dashboard JSONs to this datasource uid.
+      datasources:
+        datasources.yaml:
+          apiVersion: 1
+          datasources:
+            - name: VictoriaMetrics
+              type: prometheus
+              uid: VictoriaMetrics
+              access: proxy
+              isDefault: true
+              url: http://vmsingle-victoria-metrics-victoria-metrics-k8s-stack.victoria-metrics.svc:8428
+              jsonData:
+                httpMethod: POST
+                timeInterval: 30s
+
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 512Mi

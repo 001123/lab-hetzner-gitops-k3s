@@ -41,7 +41,7 @@ Trong repository đã có sẵn ứng dụng mẫu tại `cluster/apps/demo-ngin
 * Secret mã hoá bằng SOPS trong `secret.sops.yaml`.
 * Ingress trỏ domain `demo-nginx.timi.io.vn` với annotation tự động cấp phát TLS:
   ```yaml
-  cert-manager.io/cluster-issuer: letsencrypt-prod
+  cert-manager.io/cluster-issuer: letsencrypt-production
   ```
 
 Commit và đẩy code lên GitHub:
@@ -86,3 +86,39 @@ git push origin main
 ```
 
 ArgoCD sẽ tự động đồng bộ lại trạng thái ổn định trước đó, đảm bảo lịch sử thay đổi luôn được lưu trữ minh bạch.
+
+---
+
+## 5. Monitoring (VictoriaMetrics + Grafana)
+
+Monitoring đi theo đúng mô hình folder-sync — hai ứng dụng nằm dưới `cluster/apps/`:
+
+| App | Chart (pin version) | Thành phần |
+|---|---|---|
+| `victoria-metrics` | `victoria-metrics-k8s-stack` `0.95.0` (VictoriaMetrics `v1.153.0`) | VM operator + VMSingle (lưu trữ/truy vấn, PVC 20Gi, retention 1 tháng) + VMAgent + kube-state-metrics + node-exporter; scrape kubelet/cAdvisor và các thành phần control-plane của k3s |
+| `grafana` | `grafana` `13.2.7` (Grafana `13.2.3`) | Giao diện Grafana tại `https://grafana.timi.io.vn`, datasource trỏ VMSingle, dashboards nhận qua sidecar |
+
+Ghi chú vận hành:
+
+* Chart được pin trong mục `helmCharts:` của `kustomization.yaml` từng app, inflate
+  bằng `--enable-helm`. Nâng cấp = bump `version:`, chạy `make validate` rồi push.
+  Chart Grafana mới nhất nằm ở `https://grafana-community.github.io/helm-charts`
+  (version chart bám theo version app); repo cũ `grafana.github.io/helm-charts`
+  chỉ có Grafana 12.x.
+* Bắt buộc `includeCrds: true` với chart victoria-metrics — kustomize helm inflation
+  sẽ bỏ qua thư mục `crds/` của chart nếu thiếu.
+* Mật khẩu admin Grafana: `sops -d cluster/apps/grafana/secret.sops.yaml`.
+* Dashboards được sync-job của k8s-stack tạo thành ConfigMap và Grafana sidecar tự
+  nhận; datasource phải giữ `uid: VictoriaMetrics`.
+* Chứng chỉ webhook của VM operator do cert-manager cấp
+  (`admissionWebhooks.certManager.enabled: true`) — tránh cert tự ký ngẫu nhiên
+  khiến app luôn OutOfSync.
+
+Kiểm tra:
+
+```bash
+kubectl -n victoria-metrics get pods
+kubectl -n victoria-metrics port-forward svc/vmsingle-victoria-metrics-victoria-metrics-k8s-stack 8428
+curl 'localhost:8428/api/v1/query?query=up'
+kubectl -n grafana get pods,ingress
+```

@@ -1,0 +1,84 @@
+---
+# VictoriaMetrics monitoring stack (metrics storage + collection).
+#
+# victoria-metrics-k8s-stack = VM operator + VMSingle (storage/query) +
+# VMAgent (scrape) + kube-state-metrics + prometheus-node-exporter +
+# VMAlert/VMRules + dashboard sync-job. Grafana lives in cluster/apps/grafana
+# and picks up the dashboard ConfigMaps created by the sync-job via sidecar.
+#
+# Chart pinned at the newest release as of 2026-09-30 (app: VictoriaMetrics
+# v1.153.0 = newest upstream). Upgrade by bumping `version:` below.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# NOTE: intentionally NO `namespace:` transformer here — the chart renders a
+# few scrape-target Services into kube-system (core-dns, kube-etcd,
+# kube-scheduler, kube-controller-manager). A namespace transformer would
+# relocate them and break scraping.
+
+resources:
+  - namespace.yaml
+
+helmCharts:
+  - name: victoria-metrics-k8s-stack
+    version: 0.95.0
+    repo: https://victoriametrics.github.io/helm-charts
+    releaseName: victoria-metrics
+    namespace: victoria-metrics
+    # BẮT BUỘC: kustomize's helm inflation drops the chart `crds/` directory
+    # unless includeCrds is set — without it VMSingle/VMAgent/VMAlert CRs fail
+    # to apply ("the server could not find the requested resource").
+    includeCrds: true
+    valuesInline:
+      # Grafana is a separate app (cluster/apps/grafana) — keep the stack lean.
+      grafana:
+        enabled: false
+
+      # No notification pipeline yet; VMAlert runs with the blackhole notifier
+      # (the chart refuses to render VMAlert without a notifier when
+      # alertmanager is disabled).
+      alertmanager:
+        enabled: false
+      vmalert:
+        spec:
+          extraArgs:
+            "notifier.blackhole": "true"
+
+      victoria-metrics-operator:
+        admissionWebhooks:
+          # Certificates via cert-manager (already installed by the platform
+          # app) instead of chart-generated self-signed certs — otherwise every
+          # render produces a new random cert and ArgoCD loops OutOfSync.
+          certManager:
+            enabled: true
+
+      vmsingle:
+        spec:
+          retentionPeriod: "1" # 1 month
+          storage:
+            resources:
+              requests:
+                storage: 20Gi
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+
+      vmagent:
+        spec:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+
+      # Dashboards/rules as ConfigMaps (label grafana_dashboard: "1") for the
+      # Grafana sidecar in cluster/apps/grafana. The sync-job is a helm
+      # post-install/post-upgrade hook — ArgoCD maps it to a PostSync hook.
+      defaultDashboards:
+        enabled: true
+      syncJob:
+        enabled: true

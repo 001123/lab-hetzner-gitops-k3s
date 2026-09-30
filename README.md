@@ -29,7 +29,10 @@ cluster/
 ├── bootstrap/root-app/      # root app-of-apps (apply once: make argocd-bootstrap)
 ├── bootstrap/children/      # Application "platform" + ApplicationSet "apps"
 ├── platform/                # cert-manager (pinned chart) + ClusterIssuer
-└── apps/demo-nginx/         # one folder = one ArgoCD app (add a folder = add an app)
+└── apps/                    # one folder = one ArgoCD app (add a folder = add an app)
+    ├── demo-nginx/
+    ├── victoria-metrics/    # monitoring stack (pinned victoria-metrics-k8s-stack)
+    └── grafana/             # dashboards UI (pinned grafana chart) — grafana.timi.io.vn
 scripts/                     # sops-encrypt.sh, get-kubeconfig.sh
 .github/workflows/validate.yml
 ```
@@ -79,6 +82,22 @@ helm inflation (`--enable-helm`).
 - ArgoCD admin login: `admin` / `argocd_admin_password` in `all.sops.yml`
   (`sops -d ansible/inventory/group_vars/all.sops.yml`).
 
+## Monitoring (VictoriaMetrics + Grafana)
+
+- **VictoriaMetrics** (`cluster/apps/victoria-metrics`): `victoria-metrics-k8s-stack` —
+  operator + VMSingle (storage/query, PVC 20Gi `local-path`, retention 1 month) +
+  VMAgent + kube-state-metrics + node-exporter, scraping kubelet/cAdvisor/k3s components.
+- **Grafana** (`cluster/apps/grafana`): `grafana.timi.io.vn` (Traefik + Let's Encrypt).
+  Datasource trỏ VMSingle; dashboards đến từ sync-job của k8s-stack qua sidecar
+  (ConfigMaps label `grafana_dashboard`). Login: `admin` / password trong
+  `cluster/apps/grafana/secret.sops.yaml` (`sops -d cluster/apps/grafana/secret.sops.yaml`).
+
+```bash
+kubectl -n victoria-metrics get pods
+kubectl -n victoria-metrics port-forward svc/vmsingle-victoria-metrics-victoria-metrics-k8s-stack 8428
+curl 'localhost:8428/api/v1/query?query=up'          # VMUI/query locally
+```
+
 ## Notes & deviations from the plan
 
 - **kubeconfig**: written to `~/.kube/hetzner-cx33-nbg.yaml` so an existing
@@ -101,6 +120,25 @@ helm inflation (`--enable-helm`).
 - **Let's Encrypt production** is active (`letsencrypt-production`); the staging
   issuer was replaced once TLS proved stable. Cloudflare DNS stays grey (DNS-only)
   until you enable proxy (orange) + SSL **Full (strict)**.
+- **Monitoring charts are pinned** (kustomize `helmCharts`, inflated at sync time):
+  `victoria-metrics-k8s-stack` `0.95.0` (VictoriaMetrics `v1.153.0`) and
+  `grafana` `13.2.7` (Grafana `13.2.3`) — newest releases as of 2026-09-30.
+  Grafana's newest charts live in `https://grafana-community.github.io/helm-charts`
+  (chart version tracks the app version); the old `grafana.github.io/helm-charts`
+  repo only ships Grafana 12.x. Upgrade = bump `version:` in the app's
+  `kustomization.yaml` + `make validate`.
+- **`includeCrds: true`** on the victoria-metrics chart is required: kustomize's
+  helm inflation drops the chart `crds/` directory without it, and the
+  VMSingle/VMAgent/VMAlert CRs then fail to apply.
+- **VM operator webhook certs** come from cert-manager
+  (`victoria-metrics-operator.admissionWebhooks.certManager.enabled: true`)
+  instead of chart-generated self-signed certs — random certs would otherwise be
+  re-rendered on every reconcile and keep the app OutOfSync forever.
+- **Helm hooks under ArgoCD**: the dashboard sync-job (`post-install,post-upgrade`)
+  is mapped to a PostSync hook and re-runs on each sync (needs egress to
+  raw.githubusercontent.com for the dashboard sources); the operator cleanup
+  (`pre-delete`) maps to PreDelete. Do not add `argocd.argoproj.io/hook`
+  annotations to these apps — that disables the mapping.
 
 ## Troubleshooting
 

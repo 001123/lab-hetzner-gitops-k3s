@@ -1,0 +1,26 @@
+---
+# Grafana behind Traefik + Let's Encrypt (same pattern as demo-nginx).
+# DNS: A record grafana.timi.io.vn -> 188.245.30.55 (Cloudflare, DNS-only).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: grafana.timi.io.vn
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - grafana.timi.io.vn
+      secretName: grafana-tls

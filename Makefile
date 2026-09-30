@@ -48,7 +48,10 @@ validate-kustomize: ## Build every kustomization (incl. KSOPS + helm inflation)
 	kustomize build cluster/bootstrap/root-app > /dev/null
 	kustomize build cluster/bootstrap/children > /dev/null
 	kustomize build $(KUSTOMIZE_HELM) cluster/platform > /dev/null
-	kustomize build $(KUSTOMIZE_PLUGIN) cluster/apps/demo-nginx > /dev/null
+	@for d in cluster/apps/*/; do \
+	  echo "  build $$d"; \
+	  kustomize build $(KUSTOMIZE_HELM) $(KUSTOMIZE_PLUGIN) $$d > /dev/null || exit 1; \
+	done
 	@echo "kustomize build OK"
 
 validate-ansible: ## Syntax-check the bootstrap playbooks

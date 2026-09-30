@@ -23,6 +23,7 @@ age.agekey
 .kubeconfig
 *.tmp
 *.bak
+.cloudflare/
 
 # --- local planning notes (kept out of the public repo) ---
 plan/
