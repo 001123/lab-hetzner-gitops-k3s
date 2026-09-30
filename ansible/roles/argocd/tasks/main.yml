@@ -1,10 +1,33 @@
 ---
 # ArgoCD via the official Helm chart, pinned, with KSOPS wired into the
 # repo-server (see plan/init/01-plan.md §4 and the KSOPS README).
+#
+# NOTE: helm/kubectl run on the DEV MACHINE (delegate_to: localhost) — that is
+# where the pinned toolchain lives (plan §0.1); the VPS has no helm.
+- name: Check the kubeconfig exists on the dev machine
+  ansible.builtin.stat:
+    path: "{{ kubeconfig_local_path }}"
+  delegate_to: localhost
+  become: false
+  register: argocd_kubeconfig
+  run_once: true
+
+- name: Assert the kubeconfig is available (run `make bootstrap-k3s` first)
+  ansible.builtin.assert:
+    that: argocd_kubeconfig.stat.exists
+    fail_msg: >-
+      {{ kubeconfig_local_path }} not found — run the k3s playbook first
+      (make bootstrap-k3s) so the kubeconfig is written to the dev machine.
+  run_once: true
+
 - name: Add the Argo Helm repository
   kubernetes.core.helm_repository:
     name: argo
     repo_url: https://argoproj.github.io/argo-helm
+  delegate_to: localhost
+  become: false
+  environment:
+    KUBECONFIG: "{{ kubeconfig_local_path }}"
 
 - name: Install / upgrade ArgoCD
   kubernetes.core.helm:
@@ -16,19 +39,18 @@
     values: "{{ lookup('template', 'argocd-values.yaml.j2') | from_yaml }}"
     wait: true
     timeout: 600s
+  delegate_to: localhost
+  become: false
+  environment:
+    KUBECONFIG: "{{ kubeconfig_local_path }}"
 
 - name: Check that argocd-repo-server is Available
-  kubernetes.core.k8s_info:
-    api_version: apps/v1
-    kind: Deployment
-    name: argocd-repo-server
-    namespace: argocd
-  register: argocd_repo_server
-  until: >-
-    (argocd_repo_server.resources | length == 1)
-    and (argocd_repo_server.resources[0].status.availableReplicas | default(0) | int > 0)
-  retries: 12
-  delay: 10
+  ansible.builtin.command: kubectl -n argocd rollout status deployment/argocd-repo-server --timeout=300s
+  delegate_to: localhost
+  become: false
+  environment:
+    KUBECONFIG: "{{ kubeconfig_local_path }}"
+  changed_when: false
 
 - name: Show how to reach ArgoCD
   ansible.builtin.debug:

@@ -6,9 +6,18 @@
     update_cache: true
     cache_valid_time: 3600
 
+- name: Read active swap devices (/proc/swaps)
+  ansible.builtin.command: cat /proc/swaps
+  register: common_proc_swaps
+  changed_when: false
+  when: not common_swap_enabled | bool
+
 - name: Disable swap now (k3s expects swap off)
   ansible.builtin.command: swapoff -a
-  when: not common_swap_enabled | bool and ansible_swaps | length > 0
+  when:
+    - not common_swap_enabled | bool
+    # first line of /proc/swaps is the header
+    - common_proc_swaps.stdout_lines | length > 1
 
 - name: Disable swap at boot
   ansible.builtin.lineinfile:
