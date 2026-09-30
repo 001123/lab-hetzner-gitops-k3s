@@ -64,8 +64,10 @@ lab-hetzner-gitops-k3s/
 │   ├── bootstrap/                  # Khai báo Root App-of-Apps
 │   │   ├── root-app/               # Application gốc trỏ vào children/
 │   │   └── children/               # platform-application.yaml & apps-applicationset.yaml
-│   ├── platform/                   # Hạ tầng nền tảng của hệ thống
-│   │   └── cert-manager/           # Namespace, Helm release và ClusterIssuer
+│   ├── platform/                   # Hạ tầng nền tảng của hệ thống (một Application)
+│   │   ├── cert-manager/           # Namespace, Helm release và ClusterIssuer
+│   │   ├── victoria-metrics/       # Stack giám sát (lưu trữ & thu thập metric)
+│   │   └── grafana/                # Giao diện dashboard (grafana.timi.io.vn)
 │   └── apps/                       # Ứng dụng người dùng (Git directory sync)
 │       └── demo-nginx/             # Deployment, Service, Ingress, secret.sops.yaml
 │
@@ -98,3 +100,5 @@ lab-hetzner-gitops-k3s/
 | **Liên ứng dụng (User Apps)** | `0` | `cluster/bootstrap/children/apps-applicationset.yaml` | Chỉ sinh ra các app người dùng sau khi platform đã sẵn sàng |
 | **Nội bộ cert-manager** | `-1` | `cluster/platform/cert-manager/` (CRD & pods) | Cài đặt CRD xong xuôi trước khi áp dụng manifest ClusterIssuer |
 | **Nội bộ ClusterIssuer** | `0` | `cluster/platform/cert-manager/cluster-issuer.yaml` | Thiết lập issuer ACME mà không bị lỗi thiếu tài nguyên CRD |
+| **Nội bộ VictoriaMetrics** | `0` | `cluster/platform/victoria-metrics/` | Stack giám sát (dùng cert-manager cho webhook cert) |
+| **Nội bộ Grafana** | `1` | `cluster/platform/grafana/` | Giao diện dashboard, sau VictoriaMetrics (datasource + dashboard sidecar) |

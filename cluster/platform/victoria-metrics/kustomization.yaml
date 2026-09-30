@@ -3,7 +3,7 @@
 #
 # victoria-metrics-k8s-stack = VM operator + VMSingle (storage/query) +
 # VMAgent (scrape) + kube-state-metrics + prometheus-node-exporter +
-# VMAlert/VMRules + dashboard sync-job. Grafana lives in cluster/infra/grafana
+# VMAlert/VMRules + dashboard sync-job. Grafana lives in cluster/platform/grafana
 # and picks up the dashboard ConfigMaps created by the sync-job via sidecar.
 #
 # Chart pinned at the newest release as of 2026-09-30 (app: VictoriaMetrics
@@ -34,10 +34,10 @@ helmCharts:
       # chart name concatenate into names over the 63-char Kubernetes limit
       # (e.g. "...-k8s-stack-kube-controller-manager" Service fails to create).
       # VMSingle then becomes `vm` -> service `vmsingle-vm.victoria-metrics.svc:8428`
-      # (referenced by the Grafana datasource in cluster/infra/grafana).
+      # (referenced by the Grafana datasource in cluster/platform/grafana).
       fullnameOverride: vm
 
-      # Grafana is a sibling component (cluster/infra/grafana) — keep the stack lean.
+      # Grafana is a sibling component (cluster/platform/grafana) — keep the stack lean.
       grafana:
         enabled: false
 
@@ -83,7 +83,7 @@ helmCharts:
               memory: 512Mi
 
       # Dashboards/rules as ConfigMaps (label grafana_dashboard: "1") for the
-      # Grafana sidecar in cluster/infra/grafana. The sync-job is a helm
+      # Grafana sidecar in cluster/platform/grafana. The sync-job is a helm
       # post-install/post-upgrade hook — ArgoCD maps it to a PostSync hook.
       defaultDashboards:
         enabled: true

@@ -64,8 +64,10 @@ lab-hetzner-gitops-k3s/
 │   ├── bootstrap/                  # Root App-of-Apps definitions
 │   │   ├── root-app/               # Entrypoint application pointing to children/
 │   │   └── children/               # platform-application.yaml & apps-applicationset.yaml
-│   ├── platform/                   # Core system infrastructure
-│   │   └── cert-manager/           # Namespace, Helm release, and ClusterIssuers
+│   ├── platform/                   # Core system infrastructure (one Application)
+│   │   ├── cert-manager/           # Namespace, Helm release, and ClusterIssuers
+│   │   ├── victoria-metrics/       # Monitoring stack (metrics storage & collection)
+│   │   └── grafana/                # Dashboards UI (grafana.timi.io.vn)
 │   └── apps/                       # User workloads (Git directory sync)
 │       └── demo-nginx/             # Deployment, Service, Ingress, secret.sops.yaml
 │
@@ -98,3 +100,5 @@ To prevent race conditions during first-time bootstrapping, declarative sync wav
 | **Cross-App User Apps** | `0` | `cluster/bootstrap/children/apps-applicationset.yaml` | Spawns user applications only after platform services are active |
 | **In-App cert-manager** | `-1` | `cluster/platform/cert-manager/` (CRDs & pods) | Guarantees CRDs are installed before ClusterIssuer resources |
 | **In-App ClusterIssuer** | `0` | `cluster/platform/cert-manager/cluster-issuer.yaml` | Configures ACME issuer without transient CRD missing errors |
+| **In-App VictoriaMetrics** | `0` | `cluster/platform/victoria-metrics/` | Monitoring stack (uses cert-manager for webhook certs) |
+| **In-App Grafana** | `1` | `cluster/platform/grafana/` | Dashboards UI, after VictoriaMetrics (datasource + dashboard sidecar) |

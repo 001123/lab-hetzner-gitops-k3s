@@ -27,12 +27,12 @@ ansible/                     # bootstrap only (Phase 1–2)
 └── roles/                   # common, k3s_server, sops_age, argocd
 cluster/
 ├── bootstrap/root-app/      # root app-of-apps (apply once: make argocd-bootstrap)
-├── bootstrap/children/      # Application "platform", Application "infra", ApplicationSet "apps"
-├── platform/                # TIER 1 — what other apps depend on: cert-manager + ClusterIssuer
-├── infra/                   # TIER 2 — cluster-wide services (ONE Application "infra")
+├── bootstrap/children/      # Application "platform", ApplicationSet "apps"
+├── platform/                # TIER 1 — shared foundation (ONE Application "platform")
+│   ├── cert-manager/        #   CA + webhooks + ClusterIssuer (TLS for everything)
 │   ├── victoria-metrics/    #   monitoring stack (pinned victoria-metrics-k8s-stack)
 │   └── grafana/             #   dashboards UI (pinned grafana chart) — grafana.timi.io.vn
-└── apps/                    # TIER 3 — user workloads: one folder = one ArgoCD app
+└── apps/                    # TIER 2 — user workloads: one folder = one ArgoCD app
     └── demo-nginx/
 scripts/                     # sops-encrypt.sh, get-kubeconfig.sh
 .github/workflows/validate.yml
@@ -61,19 +61,18 @@ make validate           # kustomize build + ansible syntax check
 ## GitOps flow
 
 1. `root` Application (app-of-apps) syncs `cluster/bootstrap/children` in wave
-   order → creates the `platform` Application (wave `-1`), the `infra`
-   Application (wave `0`) and the `apps` ApplicationSet (wave `1`).
-2. `platform` installs cert-manager (wave `-1`) then `ClusterIssuer/letsencrypt-production` (wave `0`).
-3. `infra` deploys cluster-wide services from `cluster/infra/` as one Application;
-   internal order via sync-waves: `victoria-metrics` (0) then `grafana` (1).
-4. `apps` ApplicationSet uses a **git directory generator** on `cluster/apps/*`:
+   order → creates the `platform` Application (wave `-1`) and the `apps`
+   ApplicationSet (wave `0`).
+2. `platform` deploys the shared foundation from `cluster/platform/` as one
+   Application; internal order via sync-waves: `cert-manager` (`-1`) then
+   `cluster-issuer` + `victoria-metrics` (0) then `grafana` (1).
+3. `apps` ApplicationSet uses a **git directory generator** on `cluster/apps/*`:
    every subfolder becomes one auto-synced, self-healing Application.
    Adding a user app = commit `cluster/apps/<name>/` — nothing else.
 
 **How to classify a new component** (tiering):
-- *Without it, other apps cannot run* (TLS, storage class, ingress...) → `platform/`
-- *A shared service the cluster runs for itself* (monitoring, logging, backup...) → `infra/`
-  (add the subfolder to `cluster/infra/kustomization.yaml`)
+- *Shared foundation* (TLS, storage class, monitoring, logging, backup...) → `platform/`
+  (add the subfolder to `cluster/platform/kustomization.yaml`)
 - *Business/demo workload* → `apps/`
 
 ArgoCD reaches the repo through the public GitHub URL; `kustomize.buildOptions`
@@ -87,7 +86,7 @@ helm inflation (`--enable-helm`).
   `/var/lib/sops-age/age.agekey` on the VPS (owner uid 999 = argocd, chmod 600).
   **Back it up offline — losing it means re-creating every secret.**
 - Encrypted files: `ansible/inventory/group_vars/all.sops.yml` (bootstrap secrets)
-  and `cluster/apps/*/secret.sops.yaml` / `cluster/infra/*/secret.sops.yaml`
+  and `cluster/apps/*/secret.sops.yaml` / `cluster/platform/*/secret.sops.yaml`
   (workload secrets, decrypted by KSOPS in
   argocd-repo-server at sync time).
 - ArgoCD admin login: `admin` / `argocd_admin_password` in `all.sops.yml`
@@ -95,13 +94,13 @@ helm inflation (`--enable-helm`).
 
 ## Monitoring (VictoriaMetrics + Grafana)
 
-- **VictoriaMetrics** (`cluster/infra/victoria-metrics`): `victoria-metrics-k8s-stack` —
+- **VictoriaMetrics** (`cluster/platform/victoria-metrics`): `victoria-metrics-k8s-stack` —
   operator + VMSingle (storage/query, PVC 20Gi `local-path`, retention 1 month) +
   VMAgent + kube-state-metrics + node-exporter, scraping kubelet/cAdvisor/k3s components.
-- **Grafana** (`cluster/infra/grafana`): `grafana.timi.io.vn` (Traefik + Let's Encrypt).
+- **Grafana** (`cluster/platform/grafana`): `grafana.timi.io.vn` (Traefik + Let's Encrypt).
   Datasource trỏ VMSingle; dashboards đến từ sync-job của k8s-stack qua sidecar
   (ConfigMaps label `grafana_dashboard`). Login: `admin` / password trong
-  `cluster/infra/grafana/secret.sops.yaml` (`sops -d cluster/infra/grafana/secret.sops.yaml`).
+  `cluster/platform/grafana/secret.sops.yaml` (`sops -d cluster/platform/grafana/secret.sops.yaml`).
 
 ```bash
 kubectl -n victoria-metrics get pods
@@ -157,14 +156,17 @@ curl 'localhost:8428/api/v1/query?query=up'          # VMUI/query locally
 kubectl -n argocd get pods                     # repo-server = where KSOPS runs
 kubectl -n argocd logs deploy/argocd-repo-server | grep -i ksops
 kustomize build --enable-alpha-plugins --enable-exec cluster/apps/demo-nginx   # local KSOPS test
-kustomize build --enable-helm --enable-alpha-plugins --enable-exec cluster/infra
+kustomize build --enable-helm --enable-alpha-plugins --enable-exec cluster/platform
 sops filestatus <file>                          # is it encrypted?
 ```
 
-- **An Application with `helm.sh/hook: pre-delete` resources (e.g. `infra`, whose
+- **An Application with `helm.sh/hook: pre-delete` resources (e.g. `platform`, whose
   VM operator chart has a cleanup hook) gets `pre-delete-finalizer.*` finalizers.**
   If you ever *move or delete its folder in git*, deletion gets stuck looping on
   "app path does not exist" while trying to run the hook. The Application then
   owns nothing new (the replacement app already manages the live resources) —
   unstick it with
   `kubectl patch application <name> -n argocd --type=merge -p '{"metadata":{"finalizers":null}}'`.
+  Tip: strip the finalizers and `kubectl delete application <name> --cascade=orphan`
+  *before* a path move — the live resources survive and the new Application adopts
+  them instead of delete/re-create (keeps PVC data).

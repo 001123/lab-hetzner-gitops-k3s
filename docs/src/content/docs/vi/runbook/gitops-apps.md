@@ -91,8 +91,9 @@ ArgoCD sẽ tự động đồng bộ lại trạng thái ổn định trước 
 
 ## 5. Monitoring (VictoriaMetrics + Grafana)
 
-Monitoring thuộc tầng **infra** (`cluster/infra/`) — deploy dưới một Application
-tên `infra`, sắp xếp bằng sync-wave: `victoria-metrics` (0) rồi `grafana` (1):
+Monitoring thuộc tầng **platform** (`cluster/platform/`) — deploy trong
+Application `platform`, sắp xếp bằng sync-wave: `victoria-metrics` (0) rồi
+`grafana` (1):
 
 | Thành phần | Chart (pin version) | Thành phần |
 |---|---|---|
@@ -108,7 +109,7 @@ Ghi chú vận hành:
   chỉ có Grafana 12.x.
 * Bắt buộc `includeCrds: true` với chart victoria-metrics — kustomize helm inflation
   sẽ bỏ qua thư mục `crds/` của chart nếu thiếu.
-* Mật khẩu admin Grafana: `sops -d cluster/infra/grafana/secret.sops.yaml`.
+* Mật khẩu admin Grafana: `sops -d cluster/platform/grafana/secret.sops.yaml`.
 * Dashboards được sync-job của k8s-stack tạo thành ConfigMap và Grafana sidecar tự
   nhận; datasource phải giữ `uid: VictoriaMetrics`.
 * Chứng chỉ webhook của VM operator do cert-manager cấp

@@ -91,9 +91,9 @@ ArgoCD syncs the previous valid commit state cleanly, leaving an immutable audit
 
 ## 5. Monitoring Stack (VictoriaMetrics + Grafana)
 
-Monitoring lives in the **infra** tier (`cluster/infra/`) — deployed as one
-Application named `infra`, ordered by sync-waves: `victoria-metrics` (0) then
-`grafana` (1):
+Monitoring lives in the **platform** tier (`cluster/platform/`) — deployed
+inside the single `platform` Application, ordered by sync-waves:
+`victoria-metrics` (0) then `grafana` (1):
 
 | Component | Chart (pinned) | What it runs |
 |---|---|---|
@@ -109,7 +109,7 @@ Operational notes:
   version); the old `grafana.github.io/helm-charts` repo only ships Grafana 12.x.
 * `includeCrds: true` on the victoria-metrics chart is required — kustomize's helm
   inflation drops the chart `crds/` directory without it.
-* Grafana admin credentials: `sops -d cluster/infra/grafana/secret.sops.yaml`.
+* Grafana admin credentials: `sops -d cluster/platform/grafana/secret.sops.yaml`.
 * Dashboards are created as ConfigMaps by the k8s-stack sync-job and picked up by
   the Grafana sidecar; the datasource must keep `uid: VictoriaMetrics`.
 * VM operator webhook certificates are issued by cert-manager

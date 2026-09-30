@@ -4,16 +4,16 @@
 # else (plan/init/01-plan.md §3).
 #
 # Tiering (see cluster/bootstrap/children/):
-#   platform -> infra -> apps = dependency-foundation -> cluster services -> user
-# infra/ (monitoring, ...) is NOT managed here — it is the single `infra`
-# Application in infra-application.yaml.
+#   platform -> apps = shared foundation (certs + monitoring) -> user workloads
+# platform/ (cert-manager, monitoring, ...) is NOT managed here — it is the
+# single `platform` Application in platform-application.yaml.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: apps
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   goTemplate: true
   goTemplateOptions:

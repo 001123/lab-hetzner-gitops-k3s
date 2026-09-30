@@ -1,6 +1,6 @@
 ---
-# Grafana (dashboards/UI) — subfolder of the `infra` Application, deployed
-# after the VictoriaMetrics stack in cluster/infra/victoria-metrics.
+# Grafana (dashboards/UI) — subfolder of the `platform` Application, deployed
+# after the VictoriaMetrics stack in cluster/platform/victoria-metrics.
 #
 # Chart pinned at the newest release as of 2026-09-30 (app: Grafana 13.2.3 =
 # newest upstream). NOTE: the newest charts live in grafana-community/helm-charts
@@ -11,7 +11,7 @@ kind: Kustomization
 
 namespace: grafana
 
-# wave 1: applied after victoria-metrics (wave 0) inside the `infra` Application.
+# wave 1: applied after victoria-metrics (wave 0) inside the `platform` Application.
 commonAnnotations:
   argocd.argoproj.io/sync-wave: "1"
 

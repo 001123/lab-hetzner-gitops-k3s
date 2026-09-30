@@ -47,8 +47,7 @@ validate: validate-kustomize validate-ansible ## Run all local validation
 validate-kustomize: ## Build every kustomization (incl. KSOPS + helm inflation)
 	kustomize build cluster/bootstrap/root-app > /dev/null
 	kustomize build cluster/bootstrap/children > /dev/null
-	kustomize build $(KUSTOMIZE_HELM) cluster/platform > /dev/null
-	kustomize build $(KUSTOMIZE_HELM) $(KUSTOMIZE_PLUGIN) cluster/infra > /dev/null
+	kustomize build $(KUSTOMIZE_HELM) $(KUSTOMIZE_PLUGIN) cluster/platform > /dev/null
 	@for d in cluster/apps/*/; do \
 	  echo "  build $$d"; \
 	  kustomize build $(KUSTOMIZE_HELM) $(KUSTOMIZE_PLUGIN) $$d > /dev/null || exit 1; \

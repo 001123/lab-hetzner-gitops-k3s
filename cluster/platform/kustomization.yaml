@@ -1,6 +1,21 @@
 ---
+# platform = everything that is NOT a user app (lab-scale single tier):
+#   cert-manager  — CA/webhooks other resources depend on
+#   cluster-issuer — ACME/Let's Encrypt (after cert-manager CRDs)
+#   victoria-metrics — metrics storage/collection (cluster service)
+#   grafana        — dashboards/UI (after victoria-metrics)
+#
+# Deployed as ONE ArgoCD Application (`platform`, created in
+# cluster/bootstrap/children/platform-application.yaml). User workloads live
+# in cluster/apps/ (folder-synced by the `apps` ApplicationSet).
+#
+# Ordering inside this app via sync-waves:
+#   cert-manager (-1) -> cluster-issuer + victoria-metrics (0) -> grafana (1).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+
 resources:
   - cert-manager/
   - cert-manager/cluster-issuer.yaml
+  - victoria-metrics/
+  - grafana/

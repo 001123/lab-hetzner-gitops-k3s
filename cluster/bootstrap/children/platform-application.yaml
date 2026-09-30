@@ -1,7 +1,9 @@
 ---
-# Platform = cluster/system apps (cert-manager, ClusterIssuer, ...).
+# Platform = cluster/system apps (cert-manager, ClusterIssuer, monitoring:
+# VictoriaMetrics, Grafana, ...). ONE Application for the whole tier.
 # Sync-wave -1 inside the root Application: the root waits until platform is
 # Healthy before creating the user-apps ApplicationSet (wave 0).
+# Internal ordering lives in cluster/platform/kustomization.yaml (sync-waves).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
