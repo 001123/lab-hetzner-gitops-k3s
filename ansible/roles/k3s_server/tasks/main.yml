@@ -49,5 +49,5 @@
   ansible.builtin.debug:
     msg: >-
       kubeconfig written to {{ kubeconfig_local_path }} (existing ~/.kube/config untouched).
-      Use `make nodes` or run scripts/get-kubeconfig.sh to merge it into ~/.kube/config.
+      Use `make nodes` or run scripts/get-kubeconfig.sh to install it into ~/.kube/config.
   run_once: true

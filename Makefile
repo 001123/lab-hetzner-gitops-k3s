@@ -27,7 +27,7 @@ bootstrap-k3s: ## Phase 1 only: host prep + k3s
 bootstrap-argocd: ## Phase 2 only: age key + ArgoCD + KSOPS
 	cd $(ANSIBLE_DIR) && ansible-playbook playbooks/argocd.yml
 
-kubeconfig: ## Merge the VPS kubeconfig into ~/.kube/config (context hetzner-cx33-nbg)
+kubeconfig: ## Replace ~/.kube/config with the VPS kubeconfig (context hetzner-cx33-nbg)
 	./scripts/get-kubeconfig.sh
 
 argocd-bootstrap: ## Register the root app-of-apps with ArgoCD (one-time)

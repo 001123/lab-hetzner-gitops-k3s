@@ -39,7 +39,7 @@ scripts/                     # sops-encrypt.sh, get-kubeconfig.sh
 ```bash
 # 0. prerequisites: age keypair (see "Secrets"), DNS A records already in place
 make bootstrap          # k3s + ArgoCD + KSOPS  (idempotent)
-make kubeconfig         # merge VPS kubeconfig into ~/.kube/config
+make kubeconfig         # replace ~/.kube/config with the VPS kubeconfig
 make argocd-bootstrap   # register the root app-of-apps (one-time)
 make apps               # watch ArgoCD apps go Healthy
 make validate           # kustomize build + ansible syntax check
@@ -82,8 +82,9 @@ helm inflation (`--enable-helm`).
 ## Notes & deviations from the plan
 
 - **kubeconfig**: written to `~/.kube/hetzner-cx33-nbg.yaml` so an existing
-  `~/.kube/config` is never clobbered; `make kubeconfig` merges it in as context
-  `hetzner-cx33-nbg`.
+  `~/.kube/config` is never clobbered during bootstrap; `make kubeconfig`
+  **replaces** `~/.kube/config` with it as context `hetzner-cx33-nbg`
+  (previous file kept as `~/.kube/config.bak`).
 - **firewall**: besides 22/80/443, port **6443** (k3s API) is opened from
   `ufw_allow_ssh_from` so `kubectl` works from the dev machine. Tighten that CIDR in
   `ansible/inventory/group_vars/all.yml` if your IP is static.
