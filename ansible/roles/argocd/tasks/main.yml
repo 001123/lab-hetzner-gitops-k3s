@@ -37,6 +37,10 @@
     release_namespace: argocd
     create_namespace: true
     values: "{{ lookup('template', 'argocd-values.yaml.j2') | from_yaml }}"
+    # The repo may be registered (helm_repository above reports ok) while its
+    # cached index is missing (e.g. after a cache cleanup) — `helm show chart`
+    # then fails with "no cached repo found". Always refresh the index first.
+    update_repo_cache: true
     wait: true
     timeout: 600s
   delegate_to: localhost

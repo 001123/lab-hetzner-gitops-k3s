@@ -2,6 +2,12 @@
 # ArgoCD Helm values (argo/argo-cd {{ argocd_chart_version }}).
 # KSOPS integration follows the upstream KSOPS README "KSOPS Repo Server Patch"
 # for v{{ ksops_version }} (distroless image -> `ksops install --with-kustomize`).
+#
+# Chart default is nameOverride: argocd, which with release name "argo-cd" gives
+# "argo-cd-argocd-*" workload names. Pin fullnameOverride so resources keep the
+# canonical "argocd-*" names used by the rollout check in roles/argocd/tasks,
+# the README debugging commands and the KSOPS README patches.
+fullnameOverride: argocd
 global:
   domain: "{{ domain }}"
 
