@@ -26,3 +26,8 @@ age.agekey
 
 # --- local planning notes (kept out of the public repo) ---
 plan/
+
+# --- docs (astro / starlight) ---
+docs/node_modules/
+docs/dist/
+docs/.astro/
