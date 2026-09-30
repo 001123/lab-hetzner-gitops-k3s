@@ -94,7 +94,7 @@ helm inflation (`--enable-helm`).
 
 ```bash
 kubectl -n victoria-metrics get pods
-kubectl -n victoria-metrics port-forward svc/vmsingle-victoria-metrics-victoria-metrics-k8s-stack 8428
+kubectl -n victoria-metrics port-forward svc/vmsingle-vm 8428
 curl 'localhost:8428/api/v1/query?query=up'          # VMUI/query locally
 ```
 

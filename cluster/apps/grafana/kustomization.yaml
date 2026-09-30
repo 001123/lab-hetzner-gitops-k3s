@@ -61,8 +61,9 @@ helmCharts:
           enabled: true
           searchNamespace: ALL
 
-      # uid MUST stay `VictoriaMetrics` — the k8s-stack dashboard sync-job
-      # patches dashboard JSONs to this datasource uid.
+      # Datasource url points at the VMSingle service of the victoria-metrics
+      # app (`vmsingle-<fullnameOverride vm>`). uid MUST stay `VictoriaMetrics` —
+      # the k8s-stack dashboard sync-job patches dashboard JSONs to this uid.
       datasources:
         datasources.yaml:
           apiVersion: 1
@@ -72,7 +73,7 @@ helmCharts:
               uid: VictoriaMetrics
               access: proxy
               isDefault: true
-              url: http://vmsingle-victoria-metrics-victoria-metrics-k8s-stack.victoria-metrics.svc:8428
+              url: http://vmsingle-vm.victoria-metrics.svc:8428
               jsonData:
                 httpMethod: POST
                 timeInterval: 30s

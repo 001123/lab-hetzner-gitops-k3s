@@ -30,6 +30,13 @@ helmCharts:
     # to apply ("the server could not find the requested resource").
     includeCrds: true
     valuesInline:
+      # Short fullname for generated resources. Without it the release name and
+      # chart name concatenate into names over the 63-char Kubernetes limit
+      # (e.g. "...-k8s-stack-kube-controller-manager" Service fails to create).
+      # VMSingle then becomes `vm` -> service `vmsingle-vm.victoria-metrics.svc:8428`
+      # (referenced by the Grafana datasource in cluster/apps/grafana).
+      fullnameOverride: vm
+
       # Grafana is a separate app (cluster/apps/grafana) — keep the stack lean.
       grafana:
         enabled: false
