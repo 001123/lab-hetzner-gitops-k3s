@@ -8,9 +8,9 @@ domain: timi.io.vn
 letsencrypt_email: kd_labs@icloud.com
 argocd_hostname: "argocd.{{ domain }}"
 demo_hostname: "demo-nginx.{{ domain }}"
-# Staging first to avoid Let's Encrypt rate limits; switch to production later.
-letsencrypt_issuer_name: letsencrypt-staging
-letsencrypt_server: https://acme-staging-v02.api.letsencrypt.org/directory
+# Production (staging proven stable — plan/init/01-plan.md §1).
+letsencrypt_issuer_name: letsencrypt-production
+letsencrypt_server: https://acme-v02.api.letsencrypt.org/directory
 
 # --- pinned versions (see plan/init/01-plan.md §0.1) ---
 k3s_version: v1.37.0+k3s1                 # official install script, INSTALL_K3S_VERSION

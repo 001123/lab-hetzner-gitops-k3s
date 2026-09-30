@@ -58,7 +58,7 @@ make validate           # kustomize build + ansible syntax check
 
 1. `root` Application (app-of-apps) syncs `cluster/bootstrap/children` → creates
    the `platform` Application (sync-wave `-1`) and the `apps` ApplicationSet (wave `0`).
-2. `platform` installs cert-manager (wave `-1`) then `ClusterIssuer/letsencrypt-staging` (wave `0`).
+2. `platform` installs cert-manager (wave `-1`) then `ClusterIssuer/letsencrypt-production` (wave `0`).
 3. `apps` ApplicationSet uses a **git directory generator** on `cluster/apps/*`:
    every subfolder becomes one auto-synced, self-healing Application.
    Adding an app = commit `cluster/apps/<name>/` — nothing else.
@@ -98,9 +98,9 @@ helm inflation (`--enable-helm`).
 - **`ksops-config/`** is not needed: the KSOPS wiring (init container
   `viaductoss/ksops:v4.5.1` + binary mounts + `SOPS_AGE_KEY_FILE`) is declarative in
   `ansible/roles/argocd/templates/argocd-values.yaml.j2`.
-- **Let's Encrypt staging** is active (`letsencrypt-staging`); switch to production
-  in `cluster/platform/cert-manager/cluster-issuer.yaml` + the ingress annotations
-  once TLS is stable. Cloudflare DNS stays grey (DNS-only) until then.
+- **Let's Encrypt production** is active (`letsencrypt-production`); the staging
+  issuer was replaced once TLS proved stable. Cloudflare DNS stays grey (DNS-only)
+  until you enable proxy (orange) + SSL **Full (strict)**.
 
 ## Troubleshooting
 
