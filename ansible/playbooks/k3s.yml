@@ -1,0 +1,8 @@
+---
+# Phase 1: host prep + k3s server (pinned version).
+- name: Bootstrap k3s on Hetzner CX33
+  hosts: all
+  become: true
+  roles:
+    - role: common
+    - role: k3s_server

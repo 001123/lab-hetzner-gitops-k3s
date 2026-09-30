@@ -1,0 +1,8 @@
+---
+# Full bootstrap: k3s first, then ArgoCD + KSOPS.
+# Run with: make bootstrap
+- name: Bootstrap k3s
+  ansible.builtin.import_playbook: k3s.yml
+
+- name: Bootstrap ArgoCD + KSOPS
+  ansible.builtin.import_playbook: argocd.yml

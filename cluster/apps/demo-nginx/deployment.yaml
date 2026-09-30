@@ -1,0 +1,53 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-nginx
+  labels:
+    app.kubernetes.io/name: demo-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-nginx
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: demo-nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27.5-alpine
+          ports:
+            - name: http
+              containerPort: 80
+          envFrom:
+            # SOPS-encrypted Secret, decrypted by KSOPS at build time
+            - secretRef:
+                name: demo-nginx-secret
+          volumeMounts:
+            - name: index-html
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: index-html
+          configMap:
+            name: demo-nginx-html

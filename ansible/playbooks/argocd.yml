@@ -1,0 +1,8 @@
+---
+# Phase 2: age key on the VPS + ArgoCD (Helm chart, pinned) with KSOPS wiring.
+- name: Install ArgoCD + KSOPS
+  hosts: all
+  become: true
+  roles:
+    - role: sops_age
+    - role: argocd

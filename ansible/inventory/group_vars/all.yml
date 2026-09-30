@@ -1,0 +1,42 @@
+---
+# Non-secret variables for the Hetzner CX33 bootstrap.
+# Secrets live in all.sops.yml (SOPS-encrypted, decrypted transparently by the
+# community.sops.sops vars plugin — see ansible.cfg).
+
+# --- domain / TLS ---
+domain: timi.io.vn
+letsencrypt_email: kd_labs@icloud.com
+argocd_hostname: "argocd.{{ domain }}"
+demo_hostname: "demo-nginx.{{ domain }}"
+# Staging first to avoid Let's Encrypt rate limits; switch to production later.
+letsencrypt_issuer_name: letsencrypt-staging
+letsencrypt_server: https://acme-staging-v02.api.letsencrypt.org/directory
+
+# --- pinned versions (see plan/init/01-plan.md §0.1) ---
+k3s_version: v1.37.0+k3s1                 # official install script, INSTALL_K3S_VERSION
+argocd_chart_version: "10.9.4"            # argo/argo-cd, appVersion v3.5.3
+ksops_version: v4.5.1                     # viaductoss/ksops (distroless; use `ksops install`)
+cert_manager_chart_version: v1.21.2       # jetstack/cert-manager
+
+# --- git repo = single source of truth for ArgoCD ---
+gitops_repo_url: https://github.com/001123/lab-hetzner-gitops-k3s.git
+gitops_repo_revision: main
+
+# --- SOPS / AGE ---
+# Private key on the dev machine (NEVER inside the repo).
+sops_age_key_local_path: "{{ lookup('env', 'HOME') }}/.config/sops/age/keys.txt"
+# Private key copy for KSOPS inside argocd-repo-server (placed by role sops_age).
+sops_age_key_remote_path: /var/lib/sops-age/age.agekey
+sops_age_key_owner_uid: 999               # "argocd" user in argoproj/argocd images
+
+# --- kubeconfig from the VPS ---
+# Written to a *separate* file so the existing ~/.kube/config is never clobbered.
+# Use `make kubeconfig` to merge it into ~/.kube/config if you prefer.
+kubeconfig_local_path: "{{ lookup('env', 'HOME') }}/.kube/hetzner-cx33-nbg.yaml"
+
+# --- firewall (role common) ---
+ufw_allow_ssh_from: 0.0.0.0/0   # tighten to your own /32 if your IP is static
+ufw_allow_k3s_api: true          # 6443 so `kubectl` works from the dev machine
+
+# --- k3s ---
+k3s_install_script_url: https://get.k3s.io

@@ -1,0 +1,28 @@
+---
+# Platform = cluster/system apps (cert-manager, ClusterIssuer, ...).
+# Sync-wave -1 inside the root Application: the root waits until platform is
+# Healthy before creating the user-apps ApplicationSet (wave 0).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/001123/lab-hetzner-gitops-k3s.git
+    targetRevision: main
+    path: cluster/platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

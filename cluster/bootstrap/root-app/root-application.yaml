@@ -1,0 +1,29 @@
+---
+# App-of-Apps ROOT. Applied ONCE by `make argocd-bootstrap`.
+# It points at cluster/bootstrap/children, which contains ONLY Application
+# manifests (no workloads) — otherwise the root would swallow its children's
+# resources (plan/init/01-plan.md §3).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/description: "Root app-of-apps: platform Application + user-apps ApplicationSet"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/001123/lab-hetzner-gitops-k3s.git
+    targetRevision: main
+    path: cluster/bootstrap/children
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

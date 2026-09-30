@@ -1,0 +1,36 @@
+---
+# Place the age PRIVATE key on the VPS so KSOPS can decrypt *.sops.yaml at sync
+# time. The key is chmod 600, owned by the argocd uid, and never committed.
+- name: Check that the age private key exists on the dev machine
+  ansible.builtin.stat:
+    path: "{{ sops_age_key_local_path }}"
+  delegate_to: localhost
+  become: false
+  register: sops_age_key_local
+  run_once: true
+
+- name: Assert the age private key is available locally
+  ansible.builtin.assert:
+    that: sops_age_key_local.stat.exists
+    fail_msg: >-
+      Age private key not found at {{ sops_age_key_local_path }}.
+      Generate one with `age-keygen` and back it up offline first
+      (plan/init/01-plan.md Phase 0).
+  run_once: true
+
+- name: Create the SOPS age key directory
+  ansible.builtin.file:
+    path: "{{ sops_age_key_remote_path | dirname }}"
+    state: directory
+    owner: "{{ sops_age_key_owner_uid }}"
+    group: "{{ sops_age_key_owner_uid }}"
+    mode: "0700"
+
+- name: Install the age private key for KSOPS
+  ansible.builtin.copy:
+    src: "{{ sops_age_key_local_path }}"
+    dest: "{{ sops_age_key_remote_path }}"
+    owner: "{{ sops_age_key_owner_uid }}"
+    group: "{{ sops_age_key_owner_uid }}"
+    mode: "0600"
+  no_log: true

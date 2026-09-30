@@ -1,0 +1,63 @@
+---
+# ArgoCD Helm values (argo/argo-cd {{ argocd_chart_version }}).
+# KSOPS integration follows the upstream KSOPS README "KSOPS Repo Server Patch"
+# for v{{ ksops_version }} (distroless image -> `ksops install --with-kustomize`).
+global:
+  domain: "{{ domain }}"
+
+configs:
+  params:
+    # TLS terminates at Traefik; argocd-server serves plain HTTP behind the ingress.
+    server.insecure: true
+  cm:
+    timeout.reconciliation: 120s
+    # --enable-alpha-plugins --enable-exec: KSOPS (kustomize exec plugin)
+    # --enable-helm: inflate cert-manager via kustomize helmCharts
+    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec --enable-helm"
+  secret:
+    argocdServerAdminPassword: "{{ argocd_admin_password_bcrypt }}"
+
+server:
+  ingress:
+    enabled: true
+    controller: generic
+    ingressClassName: traefik
+    hostname: "{{ argocd_hostname }}"
+    path: /
+    pathType: Prefix
+    tls: true
+    annotations:
+      cert-manager.io/cluster-issuer: "{{ letsencrypt_issuer_name }}"
+
+repoServer:
+  env:
+    - name: SOPS_AGE_KEY_FILE
+      value: "{{ sops_age_key_remote_path }}"
+  volumes:
+    # 1. emptyDir holding the custom binaries, filled by the init container
+    - name: custom-tools
+      emptyDir: {}
+    # 2. age private key, installed by ansible role sops_age
+    - name: sops-age-key
+      hostPath:
+        path: "{{ sops_age_key_remote_path | dirname }}"
+        type: Directory
+  initContainers:
+    # v4.5.x image is distroless: use `ksops install`, not a shell copy.
+    - name: install-ksops
+      image: "viaductoss/ksops:{{ ksops_version }}"
+      command: ["/usr/local/bin/ksops", "install", "--with-kustomize", "/custom-tools"]
+      volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+  volumeMounts:
+    # 3. override the binaries shipped by ArgoCD
+    - mountPath: /usr/local/bin/kustomize
+      name: custom-tools
+      subPath: kustomize
+    - mountPath: /usr/local/bin/ksops
+      name: custom-tools
+      subPath: ksops
+    - mountPath: "{{ sops_age_key_remote_path | dirname }}"
+      name: sops-age-key
+      readOnly: true

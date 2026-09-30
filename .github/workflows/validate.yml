@@ -1,0 +1,82 @@
+---
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  KUSTOMIZE_VERSION: v5.8.1
+  KSOPS_VERSION: 4.5.1
+  SOPS_VERSION: v3.13.3
+  AGE_VERSION: v1.3.2
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      # Empty when the repo secret is not configured (that is fine, see below).
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kustomize, ksops, sops, age
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | sudo tar -xz -C /usr/local/bin kustomize
+          curl -fsSL "https://github.com/viaduct-ai/kustomize-sops/releases/download/v${KSOPS_VERSION}/ksops_${KSOPS_VERSION}_Linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin ksops
+          curl -fsSL "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64" | sudo tee /usr/local/bin/sops > /dev/null
+          curl -fsSL "https://github.com/FiloSottile/age/releases/download/${AGE_VERSION}/age-${AGE_VERSION}-linux-amd64.tar.gz" | sudo tar -xz -C /usr/local/bin --strip-components=1 age/age age/age-keygen
+          sudo chmod +x /usr/local/bin/kustomize /usr/local/bin/ksops /usr/local/bin/sops /usr/local/bin/age /usr/local/bin/age-keygen
+
+      # The repo is public: never let a plaintext Secret in.
+      - name: Refuse plaintext Secrets
+        run: |
+          set -euo pipefail
+          bad=0
+          while IFS= read -r f; do
+            if grep -qE '^[[:space:]]*kind:[[:space:]]*Secret[[:space:]]*$' "$f" \
+               && ! grep -qE '^[[:space:]]*sops:' "$f"; then
+              echo "::error file=$f::plaintext kind: Secret — encrypt it (make sops-encrypt)"
+              bad=1
+            fi
+          done < <(git ls-files '*.yaml' '*.yml')
+          exit "$bad"
+
+      # Every secret file must actually be encrypted (no key needed for this check).
+      - name: SOPS lint (all *.sops.yaml must be encrypted)
+        run: |
+          set -euo pipefail
+          bad=0
+          for f in $(git ls-files | grep -E '\.sops\.ya?ml$' | grep -vE '(^|/)\.sops\.ya?ml$'); do
+            if ! sops filestatus "$f" | grep -qE '"encrypted":[[:space:]]*"?true"?'; then
+              echo "::error file=$f::not SOPS-encrypted — run make sops-encrypt"
+              bad=1
+            fi
+          done
+          exit "$bad"
+
+      - name: kustomize build (bootstrap + platform)
+        run: |
+          set -euo pipefail
+          kustomize build cluster/bootstrap/root-app > /dev/null
+          kustomize build cluster/bootstrap/children > /dev/null
+          kustomize build --enable-helm cluster/platform > /dev/null
+
+      # App builds decrypt secrets via KSOPS, which needs the age private key.
+      # Set the SOPS_AGE_KEY repo secret to enable the full app build in CI.
+      - name: kustomize build (apps, needs SOPS_AGE_KEY)
+        if: ${{ env.SOPS_AGE_KEY != '' }}
+        run: |
+          set -euo pipefail
+          for d in cluster/apps/*/; do
+            kustomize build --enable-alpha-plugins --enable-exec "$d" > /dev/null
+          done
+
+      - name: ansible-lint
+        run: |
+          set -euo pipefail
+          pipx install ansible-lint
+          pipx inject ansible-lint ansible==14.4.0
+          cd ansible && ansible-lint

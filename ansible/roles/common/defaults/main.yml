@@ -1,0 +1,8 @@
+---
+# Base host hardening shared by all bootstrap playbooks.
+common_packages:
+  - curl
+  - ca-certificates
+  - python3
+  - ufw
+common_swap_enabled: false

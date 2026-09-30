@@ -1,0 +1,38 @@
+---
+# ArgoCD via the official Helm chart, pinned, with KSOPS wired into the
+# repo-server (see plan/init/01-plan.md §4 and the KSOPS README).
+- name: Add the Argo Helm repository
+  kubernetes.core.helm_repository:
+    name: argo
+    repo_url: https://argoproj.github.io/argo-helm
+
+- name: Install / upgrade ArgoCD
+  kubernetes.core.helm:
+    name: argo-cd
+    chart_ref: argo/argo-cd
+    chart_version: "{{ argocd_chart_version }}"
+    release_namespace: argocd
+    create_namespace: true
+    values: "{{ lookup('template', 'argocd-values.yaml.j2') | from_yaml }}"
+    wait: true
+    timeout: 600s
+
+- name: Check that argocd-repo-server is Available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: argocd-repo-server
+    namespace: argocd
+  register: argocd_repo_server
+  until: >-
+    (argocd_repo_server.resources | length == 1)
+    and (argocd_repo_server.resources[0].status.availableReplicas | default(0) | int > 0)
+  retries: 12
+  delay: 10
+
+- name: Show how to reach ArgoCD
+  ansible.builtin.debug:
+    msg: >-
+      ArgoCD UI: https://{{ argocd_hostname }} (Let's Encrypt {{ letsencrypt_issuer_name }}),
+      login admin / value of argocd_admin_password in
+      ansible/inventory/group_vars/all.sops.yml

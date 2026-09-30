@@ -1,0 +1,28 @@
+# --- macOS / editor ---
+.DS_Store
+*.swp
+
+# --- ansible ---
+*.retry
+__pycache__/
+*.pyc
+.ansible/
+
+# --- secrets: never commit private keys or decrypted material ---
+keys.txt
+*.agekey
+age.agekey
+*.dec.yaml
+*.dec.yml
+*.dec.json
+
+# --- kustomize helm inflation (charts pulled at build time) ---
+**/charts/
+
+# --- local tooling / scratch ---
+.kubeconfig
+*.tmp
+*.bak
+
+# --- local planning notes (kept out of the public repo) ---
+plan/

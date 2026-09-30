@@ -1,0 +1,18 @@
+---
+# SOPS creation rules — which age public key encrypts which file.
+# The matching private key lives ONLY on the dev machine and on the VPS
+# (see ansible/roles/sops_age); it is never committed.
+#
+# Encrypt / re-key everything with: make sops-encrypt
+creation_rules:
+  # Ansible bootstrap secrets (admin password, ...)
+  - path_regex: ansible/inventory/group_vars/.*\.sops\.ya?ml$
+    key_groups:
+      - age:
+          - age13hphavvlee240rq0j42j60mqxj8s4k9tp473g076xl5z35p8mgjqx29stw
+
+  # Runtime workload secrets (cluster/apps/*/secret.sops.yaml, ...)
+  - path_regex: cluster/.*\.sops\.ya?ml$
+    key_groups:
+      - age:
+          - age13hphavvlee240rq0j42j60mqxj8s4k9tp473g076xl5z35p8mgjqx29stw

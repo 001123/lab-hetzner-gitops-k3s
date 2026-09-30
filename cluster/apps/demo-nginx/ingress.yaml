@@ -1,0 +1,24 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: demo-nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: demo-nginx.timi.io.vn
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: demo-nginx
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - demo-nginx.timi.io.vn
+      secretName: demo-nginx-tls

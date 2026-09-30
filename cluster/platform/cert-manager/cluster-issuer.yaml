@@ -1,0 +1,22 @@
+---
+# Let's Encrypt STAGING first (plan/init/01-plan.md §1) — switch `server` to
+# https://acme-v02.api.letsencrypt.org/directory and rename to
+# letsencrypt-production once TLS is proven stable.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+  annotations:
+    # wave 0: applied after cert-manager (wave -1) so the CRD exists
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  acme:
+    email: kd_labs@icloud.com
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      # HTTP-01 through Traefik — no Cloudflare API token needed.
+      - http01:
+          ingress:
+            ingressClassName: traefik

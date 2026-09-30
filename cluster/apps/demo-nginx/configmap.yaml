@@ -1,0 +1,28 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-nginx-html
+  labels:
+    app.kubernetes.io/name: demo-nginx
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <title>k3s GitOps demo</title>
+        <style>
+          body { font-family: system-ui, sans-serif; max-width: 42rem;
+                 margin: 4rem auto; padding: 0 1rem; color: #1a1a2e; }
+          code { background: #f0f0f5; padding: .15rem .4rem; border-radius: .3rem; }
+        </style>
+      </head>
+      <body>
+        <h1>It works! 🎉</h1>
+        <p>This page is served by <strong>nginx</strong> on <strong>k3s</strong>,
+           deployed by <strong>ArgoCD</strong> from GitHub.</p>
+        <p>Edit <code>cluster/apps/demo-nginx/configmap.yaml</code>, commit, push —
+           ArgoCD auto-syncs the change here.</p>
+      </body>
+    </html>
