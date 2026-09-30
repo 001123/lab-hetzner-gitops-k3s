@@ -1,7 +1,7 @@
 ---
 # ArgoCD Helm values (argo/argo-cd {{ argocd_chart_version }}).
-# KSOPS integration follows the upstream KSOPS README "KSOPS Repo Server Patch"
-# for v{{ ksops_version }} (distroless image -> `ksops install --with-kustomize`).
+# KSOPS wiring follows the upstream KSOPS README "KSOPS Repo Server Patch" for
+# v{{ ksops_version }} (distroless image -> `ksops install`, not a shell copy).
 #
 # Chart default is nameOverride: argocd, which with release name "argo-cd" gives
 # "argo-cd-argocd-*" workload names. Pin fullnameOverride so resources keep the
@@ -50,17 +50,19 @@ repoServer:
         type: Directory
   initContainers:
     # v4.5.x image is distroless: use `ksops install`, not a shell copy.
+    # Deliberately WITHOUT `--with-kustomize`: the kustomize v5.3.0 it ships runs
+    # `helm version -c --short`, and helm v4 (bundled in the ArgoCD image) removed
+    # `-c`, breaking `helmCharts:` inflation (kustomize#6013). KSOPS is a KRM exec
+    # plugin resolved from PATH (`path: ksops`), so ArgoCD's bundled kustomize
+    # (>= 5.8.1, helm v4 compatible) is all we need.
     - name: install-ksops
       image: "viaductoss/ksops:{{ ksops_version }}"
-      command: ["/usr/local/bin/ksops", "install", "--with-kustomize", "/custom-tools"]
+      command: ["/usr/local/bin/ksops", "install", "/custom-tools"]
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
   volumeMounts:
-    # 3. override the binaries shipped by ArgoCD
-    - mountPath: /usr/local/bin/kustomize
-      name: custom-tools
-      subPath: kustomize
+    # 3. KSOPS binary on PATH for the KRM exec plugin
     - mountPath: /usr/local/bin/ksops
       name: custom-tools
       subPath: ksops

@@ -90,6 +90,11 @@ helm inflation (`--enable-helm`).
   `ansible/inventory/group_vars/all.yml` if your IP is static.
 - **cert-manager** is inflated by kustomize `helmCharts` (pinned `v1.21.2`) instead of
   a separate `helm-release.yaml` — one ArgoCD source, version pinned in git.
+- **KSOPS** installs only the `ksops` binary (`ksops install`, no `--with-kustomize`)
+  and runs as a KRM exec plugin (`path: ksops` on `PATH`). The kustomize `v5.3.0`
+  bundled by `--with-kustomize` shadows ArgoCD's own kustomize `v5.8.1` and breaks
+  `helmCharts:` inflation with the image's helm v4 (removed `helm version -c`,
+  upstream kustomize#6013).
 - **`ksops-config/`** is not needed: the KSOPS wiring (init container
   `viaductoss/ksops:v4.5.1` + binary mounts + `SOPS_AGE_KEY_FILE`) is declarative in
   `ansible/roles/argocd/templates/argocd-values.yaml.j2`.
