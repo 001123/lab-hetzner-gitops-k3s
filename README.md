@@ -157,5 +157,14 @@ curl 'localhost:8428/api/v1/query?query=up'          # VMUI/query locally
 kubectl -n argocd get pods                     # repo-server = where KSOPS runs
 kubectl -n argocd logs deploy/argocd-repo-server | grep -i ksops
 kustomize build --enable-alpha-plugins --enable-exec cluster/apps/demo-nginx   # local KSOPS test
+kustomize build --enable-helm --enable-alpha-plugins --enable-exec cluster/infra
 sops filestatus <file>                          # is it encrypted?
 ```
+
+- **An Application with `helm.sh/hook: pre-delete` resources (e.g. `infra`, whose
+  VM operator chart has a cleanup hook) gets `pre-delete-finalizer.*` finalizers.**
+  If you ever *move or delete its folder in git*, deletion gets stuck looping on
+  "app path does not exist" while trying to run the hook. The Application then
+  owns nothing new (the replacement app already manages the live resources) —
+  unstick it with
+  `kubectl patch application <name> -n argocd --type=merge -p '{"metadata":{"finalizers":null}}'`.
