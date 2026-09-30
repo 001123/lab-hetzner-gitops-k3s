@@ -8,7 +8,7 @@
 
 - name: Check the installed k3s version
   ansible.builtin.command: /usr/local/bin/k3s --version
-  register: k3s_version_current
+  register: k3s_server_version_current
   changed_when: false
   failed_when: false
 
@@ -16,7 +16,8 @@
   ansible.builtin.command: /tmp/k3s-install.sh
   environment:
     INSTALL_K3S_VERSION: "{{ k3s_version }}"
-  when: k3s_version not in (k3s_version_current.stdout | default(''))
+  changed_when: true
+  when: k3s_version not in (k3s_server_version_current.stdout | default(''))
 
 - name: Wait until the k3s node is Ready
   ansible.builtin.command: /usr/local/bin/k3s kubectl wait --for=condition=Ready node --all --timeout=180s
@@ -25,20 +26,20 @@
 - name: Read the k3s kubeconfig from the server
   ansible.builtin.slurp:
     src: /etc/rancher/k3s/k3s.yaml
-  register: k3s_kubeconfig_raw
+  register: k3s_server_kubeconfig_raw
   run_once: true
 
 - name: Rewrite the API server address to the public IP
   ansible.builtin.set_fact:
-    kubeconfig_content: >-
-      {{ (k3s_kubeconfig_raw.content | b64decode)
+    k3s_server_kubeconfig_content: >-
+      {{ (k3s_server_kubeconfig_raw.content | b64decode)
          | replace('server: https://127.0.0.1:6443',
                    'server: https://' ~ ansible_host ~ ':6443') }}
   run_once: true
 
 - name: Write the kubeconfig to the dev machine
   ansible.builtin.copy:
-    content: "{{ kubeconfig_content }}"
+    content: "{{ k3s_server_kubeconfig_content }}"
     dest: "{{ kubeconfig_local_path }}"
     mode: "0600"
   delegate_to: localhost

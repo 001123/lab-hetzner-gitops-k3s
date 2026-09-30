@@ -1,0 +1,5 @@
+---
+# ansible-lint configuration (runs in CI as `cd ansible && ansible-lint`).
+exclude_paths:
+  # SOPS ciphertext (ansible vars) — not real YAML; never lint it.
+  - inventory/group_vars/all.sops.yml

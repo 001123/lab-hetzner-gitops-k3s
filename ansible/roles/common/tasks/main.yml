@@ -14,6 +14,7 @@
 
 - name: Disable swap now (k3s expects swap off)
   ansible.builtin.command: swapoff -a
+  changed_when: true
   when:
     - not common_swap_enabled | bool
     # first line of /proc/swaps is the header
