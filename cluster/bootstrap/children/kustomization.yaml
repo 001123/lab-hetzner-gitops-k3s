@@ -2,5 +2,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - platform-application.yaml
-  - apps-applicationset.yaml
+  - platform-application.yaml   # wave -1: cert-manager + ClusterIssuer
+  - infra-application.yaml      # wave  0: monitoring (VictoriaMetrics, Grafana)
+  - apps-applicationset.yaml    # wave  1: user workloads (folder sync)

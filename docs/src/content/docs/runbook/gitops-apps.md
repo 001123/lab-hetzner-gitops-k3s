@@ -91,23 +91,25 @@ ArgoCD syncs the previous valid commit state cleanly, leaving an immutable audit
 
 ## 5. Monitoring Stack (VictoriaMetrics + Grafana)
 
-Monitoring follows the same folder-sync model — two applications under `cluster/apps/`:
+Monitoring lives in the **infra** tier (`cluster/infra/`) — deployed as one
+Application named `infra`, ordered by sync-waves: `victoria-metrics` (0) then
+`grafana` (1):
 
-| App | Chart (pinned) | What it runs |
+| Component | Chart (pinned) | What it runs |
 |---|---|---|
 | `victoria-metrics` | `victoria-metrics-k8s-stack` `0.95.0` (VictoriaMetrics `v1.153.0`) | VM operator + VMSingle (storage/query, 20Gi PVC, 1-month retention) + VMAgent + kube-state-metrics + node-exporter; scrapes kubelet/cAdvisor and the k3s control-plane components |
 | `grafana` | `grafana` `13.2.7` (Grafana `13.2.3`) | Grafana UI at `https://grafana.timi.io.vn`, datasource = VMSingle, dashboards via sidecar |
 
 Operational notes:
 
-* Charts are pinned under `helmCharts:` in each app's `kustomization.yaml` and
+* Charts are pinned under `helmCharts:` in each component's `kustomization.yaml` and
   inflated with `--enable-helm`. Upgrade = bump `version:`, then `make validate`
   and push. The newest Grafana charts live in
   `https://grafana-community.github.io/helm-charts` (chart version tracks the app
   version); the old `grafana.github.io/helm-charts` repo only ships Grafana 12.x.
 * `includeCrds: true` on the victoria-metrics chart is required — kustomize's helm
   inflation drops the chart `crds/` directory without it.
-* Grafana admin credentials: `sops -d cluster/apps/grafana/secret.sops.yaml`.
+* Grafana admin credentials: `sops -d cluster/infra/grafana/secret.sops.yaml`.
 * Dashboards are created as ConfigMaps by the k8s-stack sync-job and picked up by
   the Grafana sidecar; the datasource must keep `uid: VictoriaMetrics`.
 * VM operator webhook certificates are issued by cert-manager

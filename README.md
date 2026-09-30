@@ -27,12 +27,13 @@ ansible/                     # bootstrap only (Phase 1–2)
 └── roles/                   # common, k3s_server, sops_age, argocd
 cluster/
 ├── bootstrap/root-app/      # root app-of-apps (apply once: make argocd-bootstrap)
-├── bootstrap/children/      # Application "platform" + ApplicationSet "apps"
-├── platform/                # cert-manager (pinned chart) + ClusterIssuer
-└── apps/                    # one folder = one ArgoCD app (add a folder = add an app)
-    ├── demo-nginx/
-    ├── victoria-metrics/    # monitoring stack (pinned victoria-metrics-k8s-stack)
-    └── grafana/             # dashboards UI (pinned grafana chart) — grafana.timi.io.vn
+├── bootstrap/children/      # Application "platform", Application "infra", ApplicationSet "apps"
+├── platform/                # TIER 1 — what other apps depend on: cert-manager + ClusterIssuer
+├── infra/                   # TIER 2 — cluster-wide services (ONE Application "infra")
+│   ├── victoria-metrics/    #   monitoring stack (pinned victoria-metrics-k8s-stack)
+│   └── grafana/             #   dashboards UI (pinned grafana chart) — grafana.timi.io.vn
+└── apps/                    # TIER 3 — user workloads: one folder = one ArgoCD app
+    └── demo-nginx/
 scripts/                     # sops-encrypt.sh, get-kubeconfig.sh
 .github/workflows/validate.yml
 ```
@@ -59,12 +60,21 @@ make validate           # kustomize build + ansible syntax check
 
 ## GitOps flow
 
-1. `root` Application (app-of-apps) syncs `cluster/bootstrap/children` → creates
-   the `platform` Application (sync-wave `-1`) and the `apps` ApplicationSet (wave `0`).
+1. `root` Application (app-of-apps) syncs `cluster/bootstrap/children` in wave
+   order → creates the `platform` Application (wave `-1`), the `infra`
+   Application (wave `0`) and the `apps` ApplicationSet (wave `1`).
 2. `platform` installs cert-manager (wave `-1`) then `ClusterIssuer/letsencrypt-production` (wave `0`).
-3. `apps` ApplicationSet uses a **git directory generator** on `cluster/apps/*`:
+3. `infra` deploys cluster-wide services from `cluster/infra/` as one Application;
+   internal order via sync-waves: `victoria-metrics` (0) then `grafana` (1).
+4. `apps` ApplicationSet uses a **git directory generator** on `cluster/apps/*`:
    every subfolder becomes one auto-synced, self-healing Application.
-   Adding an app = commit `cluster/apps/<name>/` — nothing else.
+   Adding a user app = commit `cluster/apps/<name>/` — nothing else.
+
+**How to classify a new component** (tiering):
+- *Without it, other apps cannot run* (TLS, storage class, ingress...) → `platform/`
+- *A shared service the cluster runs for itself* (monitoring, logging, backup...) → `infra/`
+  (add the subfolder to `cluster/infra/kustomization.yaml`)
+- *Business/demo workload* → `apps/`
 
 ArgoCD reaches the repo through the public GitHub URL; `kustomize.buildOptions`
 in `argocd-cm` enables KSOPS (`--enable-alpha-plugins --enable-exec`) and kustomize
@@ -77,20 +87,21 @@ helm inflation (`--enable-helm`).
   `/var/lib/sops-age/age.agekey` on the VPS (owner uid 999 = argocd, chmod 600).
   **Back it up offline — losing it means re-creating every secret.**
 - Encrypted files: `ansible/inventory/group_vars/all.sops.yml` (bootstrap secrets)
-  and `cluster/apps/*/secret.sops.yaml` (workload secrets, decrypted by KSOPS in
+  and `cluster/apps/*/secret.sops.yaml` / `cluster/infra/*/secret.sops.yaml`
+  (workload secrets, decrypted by KSOPS in
   argocd-repo-server at sync time).
 - ArgoCD admin login: `admin` / `argocd_admin_password` in `all.sops.yml`
   (`sops -d ansible/inventory/group_vars/all.sops.yml`).
 
 ## Monitoring (VictoriaMetrics + Grafana)
 
-- **VictoriaMetrics** (`cluster/apps/victoria-metrics`): `victoria-metrics-k8s-stack` —
+- **VictoriaMetrics** (`cluster/infra/victoria-metrics`): `victoria-metrics-k8s-stack` —
   operator + VMSingle (storage/query, PVC 20Gi `local-path`, retention 1 month) +
   VMAgent + kube-state-metrics + node-exporter, scraping kubelet/cAdvisor/k3s components.
-- **Grafana** (`cluster/apps/grafana`): `grafana.timi.io.vn` (Traefik + Let's Encrypt).
+- **Grafana** (`cluster/infra/grafana`): `grafana.timi.io.vn` (Traefik + Let's Encrypt).
   Datasource trỏ VMSingle; dashboards đến từ sync-job của k8s-stack qua sidecar
   (ConfigMaps label `grafana_dashboard`). Login: `admin` / password trong
-  `cluster/apps/grafana/secret.sops.yaml` (`sops -d cluster/apps/grafana/secret.sops.yaml`).
+  `cluster/infra/grafana/secret.sops.yaml` (`sops -d cluster/infra/grafana/secret.sops.yaml`).
 
 ```bash
 kubectl -n victoria-metrics get pods

@@ -1,6 +1,6 @@
 ---
-# Grafana (dashboards/UI) — separate app so it can be upgraded/reconfigured
-# independently of the VictoriaMetrics stack in cluster/apps/victoria-metrics.
+# Grafana (dashboards/UI) — subfolder of the `infra` Application, deployed
+# after the VictoriaMetrics stack in cluster/infra/victoria-metrics.
 #
 # Chart pinned at the newest release as of 2026-09-30 (app: Grafana 13.2.3 =
 # newest upstream). NOTE: the newest charts live in grafana-community/helm-charts
@@ -10,6 +10,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 namespace: grafana
+
+# wave 1: applied after victoria-metrics (wave 0) inside the `infra` Application.
+commonAnnotations:
+  argocd.argoproj.io/sync-wave: "1"
 
 resources:
   - namespace.yaml
