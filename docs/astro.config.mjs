@@ -49,6 +49,7 @@ export default defineConfig({
           items: [
             { label: 'Bootstrap k3s & ArgoCD', slug: 'runbook/bootstrap' },
             { label: 'GitOps Workloads & Sync Waves', slug: 'runbook/gitops-apps' },
+            { label: 'Multica (AI-Agent Workspace)', slug: 'runbook/multica' },
           ],
         },
         {

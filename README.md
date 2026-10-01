@@ -33,7 +33,8 @@ cluster/
 │   ├── victoria-metrics/    #   monitoring stack (pinned victoria-metrics-k8s-stack)
 │   └── grafana/             #   dashboards UI (pinned grafana chart) — grafana.timi.io.vn
 └── apps/                    # TIER 2 — user workloads: one folder = one ArgoCD app
-    └── demo-nginx/
+    ├── demo-nginx/
+    └── multica/             #   Multica self-host (AI-agent workspace) — multica.timi.io.vn
 scripts/                     # sops-encrypt.sh, get-kubeconfig.sh
 .github/workflows/validate.yml
 ```
@@ -106,6 +107,34 @@ helm inflation (`--enable-helm`).
 kubectl -n victoria-metrics get pods
 kubectl -n victoria-metrics port-forward svc/vmsingle-vm 8428
 curl 'localhost:8428/api/v1/query?query=up'          # VMUI/query locally
+```
+
+## Multica (self-hosted AI-agent workspace)
+
+- **Multica** (`cluster/apps/multica`): [multica-ai/multica](https://github.com/multica-ai/multica) —
+  giao issue cho AI agent (Claude Code, Codex, …) như giao việc cho đồng nghiệp. Web:
+  `multica.timi.io.vn`, API: `api.multica.timi.io.vn` (Traefik + Let's Encrypt, 1 SAN cert
+  `multica-tls`). Chart OCI chính thức `oci://ghcr.io/multica-ai/charts/multica` **0.6.1**,
+  inflate bằng kustomize `helmCharts` lúc sync (giống cert-manager/grafana); nội bộ gồm
+  postgres `pgvector:pg17` (PVC 10Gi), backend Go (uploads PVC 5Gi), frontend Next.js.
+- **Secrets**: chart không template Secret `multica-secrets` — tạo qua KSOPS từ
+  `cluster/apps/multica/secret.sops.yaml` (`sops -d` để xem/sửa, `make sops-encrypt` để
+  mã hóa lại). Bắt buộc: `JWT_SECRET`, `POSTGRES_PASSWORD`; còn lại tùy chọn
+  (`RESEND_API_KEY`, `MULTICA_VCS_SECRET_KEY`, …).
+- **Login**: `APP_ENV=production`, chưa có Resend key → mã xác thực in trong log backend.
+  Sau này thêm `RESEND_API_KEY` để gửi email thật.
+- **Telemetry** tự host bị tắt (`backend.config.doNotTrack: "1"`).
+- **Agent daemon** chạy trên máy dev (không trong cluster):
+  `brew install multica-ai/tap/multica` rồi
+  `multica setup self-host --server-url https://api.multica.timi.io.vn --app-url https://multica.timi.io.vn`.
+- **Nâng cấp**: bump `version:` trong `cluster/apps/multica/kustomization.yaml` (ảnh app
+  kéo theo `Chart.appVersion`) + `make validate`. Runbook đầy đủ:
+  [`docs/src/content/docs/runbook/multica.md`](docs/src/content/docs/runbook/multica.md).
+
+```bash
+kubectl -n multica get pods,ingress,pvc
+curl https://api.multica.timi.io.vn/healthz    # {"status":"ok","checks":{"db":"ok","migrations":"ok"}}
+kubectl -n multica logs deploy/multica-backend | grep "Verification code"   # login code
 ```
 
 ## Notes & deviations from the plan

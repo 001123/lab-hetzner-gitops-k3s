@@ -1,0 +1,78 @@
+---
+# Multica — self-hosted AI-agent workspace (web + Go backend + PostgreSQL).
+# https://github.com/multica-ai/multica · self-host guide: SELF_HOSTING.md
+#
+# Official OCI Helm chart, inflated by kustomize at sync time (same pattern as
+# cert-manager / victoria-metrics / grafana). The chart is authored against
+# k3s + Traefik + local-path — exactly this cluster.
+#
+# Chart pinned at the newest release as of 2026-10-01 (v0.6.1). Released chart
+# versions strip the leading `v` from the Git tag and default the app image tags
+# to Chart.appVersion, so upgrade = bump `version:` below + `make validate`.
+#
+# The chart renders: `multica-config` ConfigMap, Services backend/frontend/
+# postgres, PVCs `multica-postgres-data` (10Gi) + `multica-backend-uploads`
+# (5Gi), Deployments backend/frontend/postgres, and 2 Ingresses (web + API).
+# No CRDs -> no `includeCrds` needed.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: multica
+
+resources:
+  - namespace.yaml
+
+# KSOPS generator: `multica-secrets` decrypted at sync time (ArgoCD) or locally
+# (`kustomize build --enable-alpha-plugins --enable-exec`). The chart references
+# this Secret by name (`existingSecret`) and never templates it.
+generators:
+  - secret-generator.yaml
+
+helmCharts:
+  - name: multica
+    version: 0.6.1
+    repo: oci://ghcr.io/multica-ai/charts
+    releaseName: multica
+    namespace: multica
+    valuesInline:
+      ingress:
+        className: traefik
+        # cert-manager issues one SAN cert (`multica-tls`) for BOTH Ingresses —
+        # the chart applies the same annotations/tls block to each, so both
+        # converge on one identical Certificate (ingress-shim names it after
+        # the tls secret).
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt-production
+        frontend:
+          # DNS A records -> 188.245.30.55 (Cloudflare, DNS-only)
+          host: multica.timi.io.vn
+        backend:
+          host: api.multica.timi.io.vn
+        tls:
+          - hosts:
+              - multica.timi.io.vn
+              - api.multica.timi.io.vn
+            secretName: multica-tls
+
+      backend:
+        config:
+          appEnv: production
+          # Same-origin: the frontend proxies /api, /v1, /auth, /uploads, /ws
+          # to the backend Service, so browser traffic stays on the web host.
+          appUrl: https://multica.timi.io.vn
+          frontendOrigin: https://multica.timi.io.vn
+          googleRedirectUri: https://multica.timi.io.vn/auth/callback
+          localUploadBaseUrl: https://api.multica.timi.io.vn
+          # No anonymous self-host telemetry (decision: keep the lab quiet).
+          doNotTrack: "1"
+
+      # Defaults kept deliberately:
+      #   postgres.external.enabled=false  — built-in pgvector/pgvector:pg17 on
+      #                                      the 10Gi local-path PVC
+      #   backend.uploads.persistence     — 5Gi RWO PVC (no S3 configured)
+      #   replicas: 1 (backend + frontend) — RWO uploads PVC + recommended
+      #                                      topology for the API/WS server
+      #   frontend.compatibility.backendAlias=false — current multica-web
+      #                                      images read REMOTE_API_URL at
+      #                                      runtime (defaults to this release's
+      #                                      backend Service)
