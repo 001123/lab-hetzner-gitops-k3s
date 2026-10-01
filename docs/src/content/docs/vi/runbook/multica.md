@@ -97,6 +97,30 @@ multica daemon status        # máy hiện trong Settings -> Runtimes
 Sau đó tạo agent trong web UI và giao issue — agent tự nhận việc trên máy chạy daemon và báo
 cáo lên board.
 
+### Ansible: kết nối VPS làm runtime
+
+Repo có sẵn playbook idempotent (role `multica_cli`, target: VPS) cài `multica` CLI bản pin
+từ GitHub Releases, trỏ về `api.multica.timi.io.vn`, đăng nhập bằng personal access token
+và chạy daemon dưới systemd unit (`multica-daemon.service`) để sống sót sau reboot.
+
+1. Tạo personal access token trong web UI (**Settings → API Tokens**), rồi thêm vào vars
+   SOPS: `sops ansible/inventory/group_vars/all.sops.yml` → `multica_api_token: "mul_..."`.
+2. Chạy `make multica-daemon` (chạy lại thoải mái — lần 2 là no-op).
+3. Kiểm tra trên VPS: `systemctl is-active multica-daemon` và `multica daemon status`.
+
+```bash
+make multica-daemon                                        # cài / cập nhật
+ssh hetzner-cx33-nbg "journalctl -u multica-daemon -n 50"  # log daemon
+```
+
+Lưu ý:
+
+- Role chỉ cài **Multica CLI + daemon**. Daemon đăng ký 1 runtime cho mỗi agent CLI có sẵn
+  trên máy — cài thêm (ví dụ `claude`, `codex`) và đăng nhập để agent chạy được trên VPS.
+- **Nâng cấp** = bump `multica_cli_version` trong `ansible/inventory/group_vars/all.yml`
+  (giữ đồng bộ với version chart server) rồi chạy lại playbook.
+- **Token hết hạn** = tạo token mới trong web UI, cập nhật `multica_api_token`, chạy lại.
+
 ---
 
 ## 5. Nâng cấp & Vận hành

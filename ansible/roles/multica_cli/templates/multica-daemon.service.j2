@@ -1,0 +1,26 @@
+---
+# systemd unit for the Multica agent daemon ("connect this machine" runtime).
+#
+# Upstream `multica daemon start` daemonizes itself but does NOT survive a
+# reboot and has no supervision — on a server we run the documented foreground
+# mode under systemd instead (Restart=always, journalctl for logs, enabled at
+# boot). The role stops any CLI-background daemon before enabling this unit so
+# the two never run side by side.
+[Unit]
+Description=Multica agent daemon (runtime for {{ multica_api_hostname }})
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ multica_cli_daemon_user }}
+Group={{ multica_cli_daemon_group }}
+# The CLI keeps its state (~/.multica: config, token, daemon.log) under the
+# invoking user's HOME — set it explicitly because systemd does not.
+Environment=HOME={{ multica_cli_daemon_home }}
+ExecStart={{ multica_cli_bin_dir }}/multica daemon start --foreground
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

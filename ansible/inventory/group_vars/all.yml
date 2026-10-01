@@ -40,3 +40,12 @@ ufw_allow_k3s_api: true          # 6443 so `kubectl` works from the dev machine
 
 # --- k3s ---
 k3s_install_script_url: https://get.k3s.io
+
+# --- multica runtime (role multica_cli) ---
+# CLI version pin — keep in sync with the server chart in cluster/apps/multica
+# (release tag v0.6.1 -> chart 0.6.1 -> CLI 0.6.1). Bump both together.
+multica_cli_version: "0.6.1"
+multica_app_hostname: "multica.{{ domain }}"
+multica_api_hostname: "api.multica.{{ domain }}"
+# Secret: multica_api_token (personal access token) lives in all.sops.yml —
+# create one in the web UI under Settings -> API Tokens.

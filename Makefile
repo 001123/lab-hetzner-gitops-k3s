@@ -12,7 +12,7 @@ KUSTOMIZE_PLUGIN := --enable-alpha-plugins --enable-exec
 KUSTOMIZE_HELM   := --enable-helm
 
 .PHONY: help bootstrap bootstrap-k3s bootstrap-argocd kubeconfig argocd-bootstrap \
-        nodes apps sops-encrypt validate validate-kustomize validate-ansible
+        multica-daemon nodes apps sops-encrypt validate validate-kustomize validate-ansible
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -32,6 +32,9 @@ kubeconfig: ## Replace ~/.kube/config with the VPS kubeconfig (context hetzner-c
 
 argocd-bootstrap: ## Register the root app-of-apps with ArgoCD (one-time)
 	kubectl apply -k cluster/bootstrap/root-app
+
+multica-daemon: ## Install Multica CLI + agent daemon on the VPS (runtime, idempotent)
+	cd $(ANSIBLE_DIR) && ansible-playbook playbooks/multica.yml
 
 nodes: ## Show cluster nodes
 	kubectl get nodes -o wide

@@ -1,0 +1,7 @@
+---
+- name: Restart multica-daemon
+  ansible.builtin.systemd:
+    name: "{{ multica_cli_daemon_service }}"
+    state: restarted
+    enabled: true
+    daemon_reload: true

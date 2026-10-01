@@ -1,0 +1,153 @@
+---
+# Multica CLI + agent daemon — "connect this machine" as a Multica runtime.
+#
+# Installs the pinned CLI release from GitHub Releases (same artifact naming as
+# upstream install.sh: multica-cli-<ver>-linux-<arch>.tar.gz), points it at the
+# self-hosted server, logs in with a personal access token (headless-safe), and
+# runs the daemon under systemd so it survives reboots.
+#
+# Scope note: this role installs ONLY the Multica CLI + daemon. It detects and
+# registers whatever agent CLIs (claude, codex, ...) are already on PATH — with
+# none installed the daemon comes up healthy but registers 0 runtimes. Install
+# at least one agent CLI (and sign it in) to let agents execute on this machine.
+
+- name: Assert the target is a supported Linux host
+  ansible.builtin.assert:
+    that:
+      - ansible_system == 'Linux'
+      - ansible_architecture in ['x86_64', 'aarch64', 'arm64']
+    fail_msg: >-
+      This role installs the Linux amd64/arm64 release binary only
+      (detected {{ ansible_system }}/{{ ansible_architecture }}). On macOS use
+      `brew install multica-ai/tap/multica` instead.
+
+- name: Assert the Multica API token is configured
+  ansible.builtin.assert:
+    that:
+      - multica_api_token is defined
+      - multica_api_token | length > 0
+    fail_msg: >-
+      multica_api_token is empty. Create a personal access token in the web UI
+      (Settings -> API Tokens, https://{{ multica_app_hostname }}/settings?tab=tokens),
+      put it into ansible/inventory/group_vars/all.sops.yml via
+      `sops ansible/inventory/group_vars/all.sops.yml`, then re-run.
+
+- name: Check the installed Multica CLI version
+  ansible.builtin.command:
+    cmd: "{{ multica_cli_bin_dir }}/multica version"
+  register: multica_cli_version_current
+  changed_when: false
+  failed_when: false
+
+- name: Download the pinned Multica CLI release tarball
+  ansible.builtin.get_url:
+    url: "https://github.com/multica-ai/multica/releases/download/v{{ multica_cli_version }}/{{ multica_cli_release_asset }}"
+    dest: "/tmp/{{ multica_cli_release_asset }}"
+    mode: "0644"
+  when: multica_cli_version not in (multica_cli_version_current.stdout | default(''))
+
+- name: Install the Multica CLI binary
+  ansible.builtin.unarchive:
+    src: "/tmp/{{ multica_cli_release_asset }}"
+    dest: "{{ multica_cli_bin_dir }}"
+    remote_src: true
+    owner: "{{ multica_cli_daemon_user }}"
+    group: "{{ multica_cli_daemon_group }}"
+    mode: "0755"
+  when: multica_cli_version not in (multica_cli_version_current.stdout | default(''))
+
+- name: Read the current Multica CLI config
+  ansible.builtin.command:
+    cmd: "{{ multica_cli_bin_dir }}/multica config show"
+  register: multica_cli_config_current
+  changed_when: false
+  failed_when: false
+
+- name: Point the CLI at the self-hosted API server
+  ansible.builtin.command:
+    cmd: "{{ multica_cli_bin_dir }}/multica config set server_url https://{{ multica_api_hostname }}"
+  when: multica_api_hostname not in (multica_cli_config_current.stdout | default(''))
+  changed_when: true
+
+- name: Point the CLI at the self-hosted web app
+  ansible.builtin.command:
+    cmd: "{{ multica_cli_bin_dir }}/multica config set app_url https://{{ multica_app_hostname }}"
+  when: multica_app_hostname not in (multica_cli_config_current.stdout | default(''))
+  changed_when: true
+
+# `multica auth status` exits non-zero when there is no valid login (or the
+# token expired) — only then re-authenticate, so a re-run stays a no-op.
+- name: Check the current Multica auth status
+  ansible.builtin.command:
+    cmd: "{{ multica_cli_bin_dir }}/multica auth status"
+  register: multica_cli_auth_status
+  changed_when: false
+  failed_when: false
+
+- name: Log in with the personal access token
+  ansible.builtin.command:
+    cmd: "{{ multica_cli_bin_dir }}/multica login --token {{ multica_api_token }}"
+  when: multica_cli_auth_status.rc != 0
+  changed_when: true
+  no_log: true
+
+# A daemon started earlier via plain `multica daemon start` (CLI-background,
+# pidfile-based) must not race the systemd unit. Stop it only when the unit is
+# not running yet; a healthy unit means there is nothing else to clean up.
+- name: Gather service facts before daemon setup
+  ansible.builtin.service_facts:
+
+- name: Stop a leftover CLI-background daemon
+  ansible.builtin.command:
+    cmd: "{{ multica_cli_bin_dir }}/multica daemon stop"
+  when: >-
+    (ansible_facts.services | default({}))
+    .get(multica_cli_daemon_service ~ '.service', {}).get('state', '') != 'running'
+  changed_when: false
+  failed_when: false
+
+- name: Install the multica-daemon systemd unit
+  ansible.builtin.template:
+    src: multica-daemon.service.j2
+    dest: "/etc/systemd/system/{{ multica_cli_daemon_service }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart multica-daemon
+
+- name: Enable and start the multica-daemon service
+  ansible.builtin.systemd:
+    name: "{{ multica_cli_daemon_service }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Gather service facts after daemon start
+  ansible.builtin.service_facts:
+
+- name: Assert the daemon service is running
+  ansible.builtin.assert:
+    that:
+      - >-
+        (ansible_facts.services | default({}))
+        .get(multica_cli_daemon_service ~ '.service', {}).get('state', '') == 'running'
+    fail_msg: >-
+      Service {{ multica_cli_daemon_service }} is not running. Inspect it with
+      `journalctl -u {{ multica_cli_daemon_service }} -n 100` on the target host.
+
+- name: Read the daemon status
+  ansible.builtin.command:
+    cmd: "{{ multica_cli_bin_dir }}/multica daemon status"
+  register: multica_cli_daemon_status
+  changed_when: false
+  failed_when: false
+
+- name: Show runtime status and next steps
+  ansible.builtin.debug:
+    msg: >-
+      Multica CLI {{ multica_cli_version }} installed at {{ multica_cli_bin_dir }}/multica,
+      daemon `{{ multica_cli_daemon_service }}` is running and enabled at boot.
+      Status: {{ (multica_cli_daemon_status.stdout_lines | default([])) | join(' | ') }}
+      Next: install at least one agent CLI (claude, codex, ...) and sign it in on
+      this machine — the daemon registers one runtime per detected CLI, so until
+      then the machine shows up in Settings -> Runtimes with 0 agents.

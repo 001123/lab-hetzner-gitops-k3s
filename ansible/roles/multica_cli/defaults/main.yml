@@ -1,0 +1,19 @@
+---
+# Role defaults — user-facing config (version pin, hostnames, token) lives in
+# inventory/group_vars/all.{yml,sops.yml}.
+
+# Where the `multica` binary is installed (upstream install.sh default).
+multica_cli_bin_dir: /usr/local/bin
+
+# Release asset naming follows upstream install.sh:
+# multica-cli-<version>-linux-<arch>.tar.gz, containing the `multica` binary.
+multica_cli_release_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(ansible_architecture, '') }}"
+multica_cli_release_asset: "multica-cli-{{ multica_cli_version }}-linux-{{ multica_cli_release_arch }}.tar.gz"
+
+# The daemon runs as this user and keeps its state in ~/.multica/ of that user.
+# Root matches inventory ansible_user; switch both if you add a dedicated user.
+multica_cli_daemon_user: root
+multica_cli_daemon_group: root
+multica_cli_daemon_home: /root
+
+multica_cli_daemon_service: multica-daemon

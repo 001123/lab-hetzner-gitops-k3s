@@ -99,6 +99,33 @@ multica daemon status        # machine appears under Settings -> Runtimes
 Then create an agent in the web UI and assign it an issue — it picks the work up on the
 daemon's machine and reports back on the board.
 
+### Ansible: connect the VPS as a runtime
+
+The repo ships an idempotent playbook (role `multica_cli`, target: the VPS) that installs
+the pinned `multica` CLI from GitHub Releases, points it at `api.multica.timi.io.vn`,
+logs in with a personal access token, and runs the daemon under a systemd unit
+(`multica-daemon.service`) so it survives reboots.
+
+1. Create a personal access token in the web UI (**Settings → API Tokens**), then put it
+   into the SOPS vars: `sops ansible/inventory/group_vars/all.sops.yml` →
+   `multica_api_token: "mul_..."`.
+2. Run `make multica-daemon` (safe to re-run — a second run is a no-op).
+3. Verify on the VPS: `systemctl is-active multica-daemon` and `multica daemon status`.
+
+```bash
+make multica-daemon                                        # install / update
+ssh hetzner-cx33-nbg "journalctl -u multica-daemon -n 50"  # daemon logs
+```
+
+Notes:
+
+- The role installs **only** the Multica CLI + daemon. It registers one runtime per agent
+  CLI already present on the machine — install one (e.g. `claude`, `codex`) and sign it in
+  to let agents execute on the VPS.
+- **Upgrade** = bump `multica_cli_version` in `ansible/inventory/group_vars/all.yml`
+  (keep it in sync with the server chart version) and re-run the playbook.
+- **Expired token** = re-create it in the web UI, update `multica_api_token`, re-run.
+
 ---
 
 ## 5. Upgrade & Operations

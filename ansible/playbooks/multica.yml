@@ -1,0 +1,10 @@
+---
+# Day-2 runtime (NOT part of the bootstrap in site.yml): connect this machine to
+# the self-hosted Multica as an agent runtime — install the pinned `multica`
+# CLI, configure/authenticate it, and run the daemon under systemd.
+# Run with: make multica-daemon
+- name: Install Multica CLI + agent daemon
+  hosts: all
+  become: true
+  roles:
+    - role: multica_cli

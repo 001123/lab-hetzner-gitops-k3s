@@ -15,16 +15,17 @@ dev machine ──ansible──▶ VPS (k3s)          GitHub (this repo) ◀─�
 
 | Tool | Owns |
 |---|---|
-| Ansible (`ansible/`) | *only* bootstrap: k3s, firewall, ArgoCD + KSOPS, age key on the VPS |
+| Ansible (`ansible/`) | *only* bootstrap (k3s, firewall, ArgoCD + KSOPS, age key) + the day-2 `multica-daemon` runtime playbook |
 | ArgoCD (`cluster/`) | *everything* after bootstrap — no manual `kubectl apply` from Phase 3 on |
 | SOPS + AGE | secrets at rest in git; decrypted by KSOPS at sync time |
 
 ## Layout
 
 ```
-ansible/                     # bootstrap only (Phase 1–2)
+ansible/                     # bootstrap (Phase 1–2) + day-2 runtime playbook
 ├── inventory/               # hosts.yml + group_vars (all.sops.yml = secrets)
-└── roles/                   # common, k3s_server, sops_age, argocd
+├── playbooks/               # site/k3s/argocd (bootstrap) + multica (runtime)
+└── roles/                   # common, k3s_server, sops_age, argocd, multica_cli
 cluster/
 ├── bootstrap/root-app/      # root app-of-apps (apply once: make argocd-bootstrap)
 ├── bootstrap/children/      # Application "platform", ApplicationSet "apps"
@@ -55,6 +56,7 @@ make validate           # kustomize build + ansible syntax check
 | `make bootstrap` | `ansible-playbook ansible/playbooks/site.yml` (k3s + ArgoCD) |
 | `make bootstrap-k3s` / `make bootstrap-argocd` | one phase only |
 | `make argocd-bootstrap` | `kubectl apply -k cluster/bootstrap/root-app` |
+| `make multica-daemon` | install Multica CLI + agent daemon on the VPS (runtime, idempotent) |
 | `make sops-encrypt` | encrypt / re-key every `*.sops.yaml` / `*.sops.yml` |
 | `make nodes` / `make apps` | cluster / ArgoCD status |
 | `make validate` | local validation (also runs in CI on PR) |
@@ -127,6 +129,11 @@ curl 'localhost:8428/api/v1/query?query=up'          # VMUI/query locally
 - **Agent daemon** chạy trên máy dev (không trong cluster):
   `brew install multica-ai/tap/multica` rồi
   `multica setup self-host --server-url https://api.multica.timi.io.vn --app-url https://multica.timi.io.vn`.
+- **Runtime trên VPS bằng Ansible**: `make multica-daemon` cài `multica` CLI (pin `0.6.1`,
+  role `multica_cli`) + daemon systemd `multica-daemon.service` trên VPS — kết nối máy chủ
+  như một runtime. Cần personal access token (web → Settings → API Tokens) đặt vào
+  `sops ansible/inventory/group_vars/all.sops.yml` (`multica_api_token`). Agent CLI
+  (claude/codex/…) cài thêm sau; daemon đăng ký 1 runtime cho mỗi CLI phát hiện được.
 - **Nâng cấp**: bump `version:` trong `cluster/apps/multica/kustomization.yaml` (ảnh app
   kéo theo `Chart.appVersion`) + `make validate`. Runbook đầy đủ:
   [`docs/src/content/docs/runbook/multica.md`](docs/src/content/docs/runbook/multica.md).
