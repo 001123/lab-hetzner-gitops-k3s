@@ -66,14 +66,14 @@ jobs:
 
       # App builds decrypt secrets via KSOPS, which needs the age private key.
       # Set the SOPS_AGE_KEY repo secret to enable the full app build in CI.
-      # --enable-helm: infra + some apps (grafana, victoria-metrics) inflate
+      # --enable-helm: platform + some apps (grafana, victoria-metrics) inflate
       # pinned charts via kustomize helmCharts (helm is preinstalled on
       # ubuntu-latest).
-      - name: kustomize build (infra + apps, needs SOPS_AGE_KEY)
+      - name: kustomize build (platform + apps, needs SOPS_AGE_KEY)
         if: ${{ env.SOPS_AGE_KEY != '' }}
         run: |
           set -euo pipefail
-          kustomize build --enable-helm --enable-alpha-plugins --enable-exec cluster/infra > /dev/null
+          kustomize build --enable-helm --enable-alpha-plugins --enable-exec cluster/platform > /dev/null
           for d in cluster/apps/*/; do
             kustomize build --enable-helm --enable-alpha-plugins --enable-exec "$d" > /dev/null
           done
