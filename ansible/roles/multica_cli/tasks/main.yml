@@ -75,8 +75,11 @@
   when: multica_app_hostname not in (multica_cli_config_current.stdout | default(''))
   changed_when: true
 
-# `multica auth status` exits non-zero when there is no valid login (or the
-# token expired) — only then re-authenticate, so a re-run stays a no-op.
+# `multica auth status` has no --output flag, exits 0 either way, and prints
+# EVERYTHING to stderr: "Not authenticated" when logged out, or Server/User plus
+# a masked token ("mul_xxxxxxxx...") with a valid login. Decide on the combined
+# output: re-login when logged out OR when the masked prefix no longer matches
+# multica_api_token (i.e. the token was rotated in all.sops.yml).
 - name: Check the current Multica auth status
   ansible.builtin.command:
     cmd: "{{ multica_cli_bin_dir }}/multica auth status"
@@ -84,10 +87,17 @@
   changed_when: false
   failed_when: false
 
+- name: Compose the auth status output for the login decision
+  ansible.builtin.set_fact:
+    multica_cli_auth_output: "{{ (multica_cli_auth_status.stdout | default('')) ~ (multica_cli_auth_status.stderr | default('')) }}"
+
 - name: Log in with the personal access token
   ansible.builtin.command:
     cmd: "{{ multica_cli_bin_dir }}/multica login --token {{ multica_api_token }}"
-  when: multica_cli_auth_status.rc != 0
+  when: >-
+    multica_cli_auth_status.rc != 0
+    or 'Server:' not in multica_cli_auth_output
+    or multica_api_token[:12] not in multica_cli_auth_output
   changed_when: true
   no_log: true
 
