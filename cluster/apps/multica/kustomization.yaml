@@ -65,6 +65,10 @@ helmCharts:
           localUploadBaseUrl: https://api.multica.timi.io.vn
           # No anonymous self-host telemetry (decision: keep the lab quiet).
           doNotTrack: "1"
+          # Resend rejects sending from unverified domains; use ours (verified
+          # in the Resend dashboard) instead of the chart default
+          # noreply@multica.ai.
+          resendFromEmail: noreply@timi.io.vn
 
       # Defaults kept deliberately:
       #   postgres.external.enabled=false  — built-in pgvector/pgvector:pg17 on
