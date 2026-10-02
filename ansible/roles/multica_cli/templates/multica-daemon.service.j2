@@ -3,12 +3,20 @@
 # Upstream `multica daemon start` daemonizes itself but does NOT survive a
 # reboot and has no supervision — on a server we run the documented foreground
 # mode under systemd instead (Restart=always, journalctl for logs, enabled at
-# boot). The role stops any CLI-background daemon before enabling this unit so
-# the two never run side by side.
+# boot). The role stops any untracked daemon (including one started by hand in an
+# interactive SSH session) before enabling this unit, so the two never run side
+# by side.
 [Unit]
 Description=Multica agent daemon (runtime for {{ multica_api_hostname }})
 After=network-online.target
 Wants=network-online.target
+# Fail loudly instead of looping forever: with Restart=always, a permanent
+# conflict (the local daemon port already held, e.g. by an untracked daemon)
+# otherwise restarts every RestartSec for the whole boot (observed: 12.296
+# restarts). After 5 failures in 5 minutes the unit enters failed state, which
+# the role's "Assert the daemon service is running" task reports.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple

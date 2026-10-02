@@ -17,3 +17,7 @@ multica_cli_daemon_group: root
 multica_cli_daemon_home: /root
 
 multica_cli_daemon_service: multica-daemon
+
+# Local daemon port (upstream default). The role waits for it to be released
+# before starting the unit, so an untracked daemon cannot race systemd.
+multica_cli_daemon_port: 19514

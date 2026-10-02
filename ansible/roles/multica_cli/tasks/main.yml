@@ -101,20 +101,70 @@
   changed_when: true
   no_log: true
 
-# A daemon started earlier via plain `multica daemon start` (CLI-background,
-# pidfile-based) must not race the systemd unit. Stop it only when the unit is
-# not running yet; a healthy unit means there is nothing else to clean up.
-- name: Gather service facts before daemon setup
-  ansible.builtin.service_facts:
-
-- name: Stop a leftover CLI-background daemon
-  ansible.builtin.command:
-    cmd: "{{ multica_cli_bin_dir }}/multica daemon stop"
-  when: >-
-    (ansible_facts.services | default({}))
-    .get(multica_cli_daemon_service ~ '.service', {}).get('state', '') != 'running'
+# Any daemon NOT supervised by the systemd unit must die before the unit starts,
+# otherwise both race for the local daemon port (upstream default 127.0.0.1:19514)
+# and the loser exits 1 on every Restart=always cycle — an endless restart loop
+# (observed: 12.296 restarts / 5s apart) that burns CPU and floods the journal.
+#
+# Failure mode this replaces: the old cleanup ran `multica daemon stop` only when
+# the unit was not running, but a daemon started by hand in an interactive SSH
+# session (`multica daemon start --foreground`, reparented to PID 1, cgroup
+# user.slice/session-*.scope) is not tracked by the unit's MainPID, so the unit
+# could never take the port. Never assume "unit not running" == "nothing to stop".
+#
+# The bracket trick `[m]ultica daemon start` keeps pgrep from matching the shell
+# that runs this probe (its own command line contains the literal pattern).
+- name: Find multica daemon processes not supervised by the systemd unit
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      unit_pid="$(systemctl show -p MainPID --value {{ multica_cli_daemon_service }} 2>/dev/null || true)"
+      for pid in $(pgrep -f '[m]ultica daemon start' || true); do
+        if [ "$pid" != "${unit_pid:-0}" ]; then echo "$pid"; fi
+      done
+    executable: /bin/bash
+  register: multica_cli_stray_daemon_pids
   changed_when: false
   failed_when: false
+  check_mode: false
+
+- name: Stop untracked daemons (graceful `daemon stop`, then SIGTERM)
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      pids="{{ multica_cli_stray_daemon_pids.stdout_lines | join(' ') }}"
+      {{ multica_cli_bin_dir }}/multica daemon stop >/dev/null 2>&1 || true
+      for _ in $(seq 1 15); do
+        alive=""
+        for pid in $pids; do kill -0 "$pid" 2>/dev/null && alive="$alive $pid"; done
+        [ -z "$alive" ] && exit 0
+        sleep 1
+      done
+      echo "graceful stop timed out, sending SIGTERM:$alive" >&2
+      kill $alive 2>/dev/null || true
+      for _ in $(seq 1 10); do
+        alive=""
+        for pid in $pids; do kill -0 "$pid" 2>/dev/null && alive="$alive $pid"; done
+        [ -z "$alive" ] && exit 0
+        sleep 1
+      done
+      echo "untracked multica daemon(s) still alive:$alive" >&2
+      exit 1
+    executable: /bin/bash
+  when: >-
+    (multica_cli_stray_daemon_pids.stdout_lines | default([])) | length > 0
+    and not ansible_check_mode
+  changed_when: true
+
+- name: Wait for the daemon port to be released
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ multica_cli_daemon_port }}"
+    state: stopped
+    timeout: 30
+  when: >-
+    (multica_cli_stray_daemon_pids.stdout_lines | default([])) | length > 0
+    and not ansible_check_mode
 
 - name: Install the multica-daemon systemd unit
   ansible.builtin.template:
