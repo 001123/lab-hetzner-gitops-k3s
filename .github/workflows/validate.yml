@@ -57,12 +57,24 @@ jobs:
           done
           exit "$bad"
 
-      - name: kustomize build (bootstrap + platform)
+      # Bootstrap manifests carry no secrets, so they build with no age key.
+      # cluster/platform is deliberately NOT built here: cluster/platform/grafana
+      # ships a KSOPS generator (admin credentials), so building it needs both
+      # --enable-alpha-plugins --enable-exec AND the age key. It is built in the
+      # keyed step below instead — this step previously failed for every commit
+      # since the infra/platform merge with "external plugins disabled".
+      - name: kustomize build (bootstrap)
         run: |
           set -euo pipefail
           kustomize build cluster/bootstrap/root-app > /dev/null
           kustomize build cluster/bootstrap/children > /dev/null
-          kustomize build --enable-helm cluster/platform > /dev/null
+
+      # Make the coverage gap loud instead of silently green: without the key,
+      # platform + apps (i.e. every KSOPS-encrypted workload) are never built.
+      - name: Warn that platform + apps were not built
+        if: ${{ env.SOPS_AGE_KEY == '' }}
+        run: |
+          echo "::warning title=SOPS_AGE_KEY is not set::cluster/platform and cluster/apps were NOT built. Add the age private key as the SOPS_AGE_KEY repository secret to validate charts + KSOPS decryption in CI."
 
       # App builds decrypt secrets via KSOPS, which needs the age private key.
       # Set the SOPS_AGE_KEY repo secret to enable the full app build in CI.
